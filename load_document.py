@@ -4,6 +4,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
 
+from langchain_text_splitters import SentenceTransformersTokenTextSplitter
+
 
 
 load_dotenv()
@@ -15,13 +17,19 @@ loader = PyPDFLoader(file_path)
 
 docs = loader.load()
 
-# print(len(docs))
-
-# print(f"{docs[2].page_content}")
-
+# Вариант1
+# Тупо режем подряд весь текст кусками символов
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1000, chunk_overlap=200, add_start_index=True
 )
+
+# Вариант2
+# // UPD. разбиение не по символам, а по предложениям/семантике
+# text_splitter = SentenceTransformersTokenTextSplitter(
+#     model_name="DeepVk/USER-bge-m3",  # модель embedding
+#     chunk_size=256,                 # лимит токенов на чанк
+#     chunk_overlap=50                # перекрытие
+# ) 
 
 all_splits = text_splitter.split_documents(docs)
 print(f"Количество чанков: {len(all_splits)}")
