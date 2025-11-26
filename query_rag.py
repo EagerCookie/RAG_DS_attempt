@@ -1,18 +1,27 @@
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
+# from langchain_openai import OpenAIEmbeddings
 from dotenv import load_dotenv
 from langchain_chroma import Chroma
 
 from langchain.agents.middleware import dynamic_prompt, ModelRequest
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
 load_dotenv()
 
-embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+# Настраиваем rubert-tiny2
+model_name = "DeepVk/USER-bge-m3"
+model_kwargs = {'device': 'cpu'} # Используйте 'cuda', если есть GPU
+encode_kwargs = {'normalize_embeddings': True} # Важно для косинусного сходства
 
+embeddings = HuggingFaceEmbeddings(
+    model_name=model_name,
+    model_kwargs=model_kwargs,
+    encode_kwargs=encode_kwargs
+)
 vector_store = Chroma(
     collection_name="example_collection",
     embedding_function=embeddings,
