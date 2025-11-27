@@ -13,7 +13,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 load_dotenv()
 
-# Настраиваем rubert-tiny2
+
+# Embedding area
 model_name = "DeepVk/USER-bge-m3"
 model_kwargs = {'device': 'cpu'} # Используйте 'cuda', если есть GPU
 encode_kwargs = {'normalize_embeddings': True} # Важно для косинусного сходства
@@ -21,15 +22,23 @@ encode_kwargs = {'normalize_embeddings': True} # Важно для косину�
 embeddings = HuggingFaceEmbeddings(
     model_name=model_name,
     model_kwargs=model_kwargs,
-    encode_kwargs=encode_kwargs
+    encode_kwargs=encode_kwargs,
+    cache_folder="./transformers_models"
 )
+
+
+
 vector_store = Chroma(
     collection_name="example_collection",
     embedding_function=embeddings,
     persist_directory="./chroma_langchain_db",  # Where to save data locally, remove if not necessary
 )
 
+
+
+# ChatModel Area
 # model = ChatOpenAI(model="gpt-4o", temperature=0)
+
 
 model = ChatDeepSeek(
     model="deepseek-chat",
