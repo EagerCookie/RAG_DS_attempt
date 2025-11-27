@@ -2,3 +2,5 @@
 .env
 requirements.txt
 chroma_langchain_db
+rag_data.db
+app_config.json
