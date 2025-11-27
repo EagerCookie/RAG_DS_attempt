@@ -12,11 +12,12 @@ load_dotenv()
 
 file_path = "test.pdf"
 
+# Раздел Лоадеров
 loader = PyPDFLoader(file_path)
-
-
 docs = loader.load()
 
+
+# Раздел Сплиттеров
 # Вариант1
 # Тупо режем подряд весь текст кусками символов
 text_splitter = RecursiveCharacterTextSplitter(
@@ -34,7 +35,10 @@ text_splitter = RecursiveCharacterTextSplitter(
 all_splits = text_splitter.split_documents(docs)
 print(f"Количество чанков: {len(all_splits)}")
 
-# Настраиваем rubert-tiny2
+
+
+# Раздел Эмбеддингов
+
 # model_name = "cointegrated/rubert-tiny2"
 model_name = "DeepVk/USER-bge-m3"
 model_kwargs = {'device': 'cpu'} # Используйте 'cuda', если есть GPU
@@ -46,6 +50,7 @@ embeddings = HuggingFaceEmbeddings(
     encode_kwargs=encode_kwargs
 )
 
+# Раздел Векторных Баз
 vector_store = Chroma(
     collection_name="example_collection",
     embedding_function=embeddings,
