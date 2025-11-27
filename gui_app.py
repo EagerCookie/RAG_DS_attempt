@@ -353,7 +353,8 @@ class DocumentProcessorApp:
             embeddings = HuggingFaceEmbeddings(
                 model_name=embed_config["model_name"],
                 model_kwargs=embed_config["model_kwargs"],
-                encode_kwargs=embed_config["encode_kwargs"]
+                encode_kwargs=embed_config["encode_kwargs"],
+                cache_folder="./transformers_models"
             )
 
             # 4. Vector DB
