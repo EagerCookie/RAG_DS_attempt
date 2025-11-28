@@ -1,4 +1,5 @@
-from langchain_community.document_loaders import PyPDFLoader
+# from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import UnstructuredMarkdownLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from dotenv import load_dotenv
@@ -10,10 +11,10 @@ from langchain_text_splitters import SentenceTransformersTokenTextSplitter
 
 load_dotenv()
 
-file_path = "test.pdf"
+file_path = "test.md"
 
 # Раздел Лоадеров
-loader = PyPDFLoader(file_path)
+loader = UnstructuredMarkdownLoader(file_path)
 docs = loader.load()
 
 
