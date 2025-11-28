@@ -1,0 +1,1 @@
+pipeline.run(file_path)
