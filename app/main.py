@@ -7,7 +7,7 @@ import hashlib
 import uuid
 from datetime import datetime
 
-app = FastAPI(title="RAG Pipeline API", version="1.0.8")
+app = FastAPI(title="RAG Pipeline API", version="1.0.9")
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -404,6 +404,46 @@ async def get_task_status(task_id: str):
     tasks_cache[task_id] = status
     
     return status
+
+# Additional endpoints
+@app.get("/api/files")
+async def list_processed_files(limit: int = 100):
+    """List processed files"""
+    return db_manager.get_processed_files(limit=limit)
+
+@app.get("/api/statistics")
+async def get_statistics():
+    """Get processing statistics"""
+    return db_manager.get_statistics()
+
+@app.delete("/api/pipelines/{pipeline_id}")
+async def delete_pipeline(pipeline_id: str):
+    """Delete a pipeline"""
+    success = db_manager.delete_pipeline(pipeline_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    # Clear from cache
+    if pipeline_id in pipelines_cache:
+        del pipelines_cache[pipeline_id]
+    
+    return {"message": "Pipeline deleted successfully"}
+
+@app.post("/api/pipelines/{pipeline_id}/validate")
+async def validate_pipeline(pipeline_id: str):
+    """Validate pipeline configuration"""
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    config = PipelineConfig.model_validate_json(pipeline_data['config'])
+    warnings = PipelineValidator.validate_compatibility(config)
+    
+    return {
+        "valid": True,
+        "warnings": warnings,
+        "estimated_time_per_mb": PipelineValidator.estimate_processing_time(config, 1.0)
+    }
 
 # ==========================================
 # BACKGROUND PROCESSING
