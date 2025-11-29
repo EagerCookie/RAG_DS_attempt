@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Pipeline Builder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        select, input[type="text"], input[type="number"], input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .param-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .status-message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #777;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 RAG Pipeline Builder</h1>
+            <p>Создайте и настройте ваш пайплайн для обработки документов</p>
+        </div>
+
+        <div class="content">
+            <!-- Pipeline Name -->
+            <div class="section">
+                <h2>📝 Название пайплайна</h2>
+                <div class="form-group">
+                    <label>Имя</label>
+                    <input type="text" id="pipelineName" value="my_pipeline" placeholder="Введите название">
+                </div>
+            </div>
+
+            <!-- Loader -->
+            <div class="section">
+                <h2>📄 1. Загрузчик документов</h2>
+                <div class="form-group">
+                    <label>Тип загрузчика</label>
+                    <select id="loaderType">
+                        <option value="">Загрузка...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Splitter -->
+            <div class="section">
+                <h2>✂️ 2. Разделитель текста</h2>
+                <div class="form-group">
+                    <label>Тип разделителя</label>
+                    <select id="splitterType">
+                        <option value="">Загрузка...</option>
+                    </select>
+                </div>
+                <div class="param-grid">
+                    <div class="form-group">
+                        <label>Размер чанка</label>
+                        <input type="number" id="chunkSize" value="1000" min="100" max="4000">
+                    </div>
+                    <div class="form-group">
+                        <label>Перекрытие</label>
+                        <input type="number" id="chunkOverlap" value="200" min="0" max="1000">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Embedding -->
+            <div class="section">
+                <h2>🧠 3. Модель эмбеддингов</h2>
+                <div class="form-group">
+                    <label>Тип эмбеддинга</label>
+                    <select id="embeddingType">
+                        <option value="">Загрузка...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Название модели</label>
+                    <input type="text" id="embeddingModel" value="DeepVk/USER-bge-m3">
+                </div>
+            </div>
+
+            <!-- Database -->
+            <div class="section">
+                <h2>💾 4. Векторная база данных</h2>
+                <div class="form-group">
+                    <label>Тип базы данных</label>
+                    <select id="databaseType">
+                        <option value="">Загрузка...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Имя коллекции</label>
+                    <input type="text" id="collectionName" value="my_collection">
+                </div>
+            </div>
+
+            <!-- File Upload -->
+            <div class="section">
+                <h2>📤 5. Загрузить файл</h2>
+                <div class="form-group">
+                    <label>Выберите файл для обработки</label>
+                    <input type="file" id="fileInput" accept=".pdf,.txt,.md">
+                    <div id="fileInfo" class="file-info" style="display: none;"></div>
+                </div>
+                <button id="processBtn" onclick="processPipeline()">
+                    Создать пайплайн и обработать файл
+                </button>
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-container" id="progressContainer">
+                <h3>Обработка...</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+                <div id="statusMessage" class="status-message status-info"></div>
+            </div>
+
+            <!-- Results -->
+            <div class="section" id="resultsSection" style="display: none;">
+                <h2>✅ Результаты</h2>
+                <div class="stats" id="stats"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let pipelineId = null;
+
+        // Load components on page load
+        window.onload = async () => {
+            await loadLoaders();
+            await loadSplitters();
+            await loadEmbeddings();
+            await loadDatabases();
+        };
+
+        async function loadLoaders() {
+            const response = await fetch(`${API_URL}/api/loaders`);
+            const loaders = await response.json();
+            const select = document.getElementById('loaderType');
+            select.innerHTML = loaders.map(l => 
+                `<option value="${l.id}">${l.name}</option>`
+            ).join('');
+        }
+
+        async function loadSplitters() {
+            const response = await fetch(`${API_URL}/api/splitters`);
+            const splitters = await response.json();
+            const select = document.getElementById('splitterType');
+            select.innerHTML = splitters.map(s => 
+                `<option value="${s.id}">${s.name}</option>`
+            ).join('');
+        }
+
+        async function loadEmbeddings() {
+            const response = await fetch(`${API_URL}/api/embeddings`);
+            const embeddings = await response.json();
+            const select = document.getElementById('embeddingType');
+            select.innerHTML = embeddings.map(e => 
+                `<option value="${e.id}">${e.name}</option>`
+            ).join('');
+        }
+
+        async function loadDatabases() {
+            const response = await fetch(`${API_URL}/api/databases`);
+            const databases = await response.json();
+            const select = document.getElementById('databaseType');
+            select.innerHTML = databases.map(d => 
+                `<option value="${d.id}">${d.name}</option>`
+            ).join('');
+        }
+
+        // File input handler
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const fileInfo = document.getElementById('fileInfo');
+                fileInfo.style.display = 'flex';
+                fileInfo.innerHTML = `
+                    <span>📄 ${file.name}</span>
+                    <span>${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                `;
+            }
+        });
+
+        async function processPipeline() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+
+            // Disable button
+            const btn = document.getElementById('processBtn');
+            btn.disabled = true;
+
+            try {
+                // Create pipeline config
+                const config = {
+                    name: document.getElementById('pipelineName').value,
+                    loader: {
+                        type: document.getElementById('loaderType').value
+                    },
+                    splitter: {
+                        type: document.getElementById('splitterType').value,
+                        chunk_size: parseInt(document.getElementById('chunkSize').value),
+                        chunk_overlap: parseInt(document.getElementById('chunkOverlap').value)
+                    },
+                    embedding: {
+                        type: document.getElementById('embeddingType').value,
+                        model_name: document.getElementById('embeddingModel').value,
+                        device: 'cpu',
+                        normalize_embeddings: true
+                    },
+                    database: {
+                        type: document.getElementById('databaseType').value,
+                        collection_name: document.getElementById('collectionName').value
+                    }
+                };
+
+                // Create pipeline
+                showStatus('Создание пайплайна...', 'info');
+                const pipelineResp = await fetch(`${API_URL}/api/pipelines`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const pipelineData = await pipelineResp.json();
+                pipelineId = pipelineData.pipeline_id;
+
+                // Upload file
+                showStatus('Загрузка файла...', 'info');
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const uploadResp = await fetch(
+                    `${API_URL}/api/pipelines/${pipelineId}/process`,
+                    { method: 'POST', body: formData }
+                );
+                const uploadData = await uploadResp.json();
+                const taskId = uploadData.task_id;
+
+                // Poll for status
+                await pollTaskStatus(taskId);
+
+            } catch (error) {
+                showStatus(`Ошибка: ${error.message}`, 'error');
+                btn.disabled = false;
+            }
+        }
+
+        async function pollTaskStatus(taskId) {
+            const progressContainer = document.getElementById('progressContainer');
+            progressContainer.style.display = 'block';
+
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_URL}/api/tasks/${taskId}`);
+                    const task = await response.json();
+
+                    const progress = (task.progress || 0) * 100;
+                    document.getElementById('progressFill').style.width = progress + '%';
+                    document.getElementById('progressFill').textContent = Math.round(progress) + '%';
+
+                    showStatus(task.message || 'Обработка...', 'info');
+
+                    if (task.status === 'completed') {
+                        clearInterval(interval);
+                        showStatus('✅ Обработка завершена успешно!', 'success');
+                        document.getElementById('processBtn').disabled = false;
+                        showResults(task);
+                    } else if (task.status === 'failed') {
+                        clearInterval(interval);
+                        showStatus(`❌ Ошибка: ${task.error}`, 'error');
+                        document.getElementById('processBtn').disabled = false;
+                    }
+                } catch (error) {
+                    clearInterval(interval);
+                    showStatus(`Ошибка получения статуса: ${error.message}`, 'error');
+                    document.getElementById('processBtn').disabled = false;
+                }
+            }, 1000);
+        }
+
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status-message status-${type}`;
+        }
+
+        function showResults(task) {
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.style.display = 'block';
+            
+            const statsEl = document.getElementById('stats');
+            statsEl.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">✓</div>
+                    <div class="stat-label">Успешно</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="pipelineIdStat">${pipelineId.substring(0, 8)}...</div>
+                    <div class="stat-label">Pipeline ID</div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
