@@ -1,13 +1,32 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List, Literal
-from enum import Enum
+from typing import Optional, Dict, Any, List
 import hashlib
 import uuid
 from datetime import datetime
 
-app = FastAPI(title="RAG Pipeline API", version="1.0.9")
+# Import models
+from app.models.configs import (
+    PipelineConfig,
+    LoaderConfig,
+    PDFLoaderConfig,
+    TextLoaderConfig,
+    SplitterConfig,
+    RecursiveSplitterConfig,
+    SentenceTransformerSplitterConfig,
+    EmbeddingConfig,
+    HuggingFaceEmbeddingConfig,
+    DatabaseConfig,
+    ChromaDBConfig,
+    QdrantDBConfig
+)
+from app.models.schemas import (
+    ComponentInfo,
+    PipelineResponse,
+    ProcessingStatus
+)
+
+app = FastAPI(title="RAG Pipeline API", version="1.0.0")
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -18,98 +37,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ==========================================
-# PYDANTIC MODELS (Configuration Schemas)
-# ==========================================
+# Import services AFTER app creation to avoid circular imports
+from app.services.database import DatabaseManager
+from app.services.pipeline_service import PipelineProcessor, PipelineValidator
 
-# Loader Configurations
-class LoaderConfigBase(BaseModel):
-    type: str
+# Initialize services
+db_manager = DatabaseManager()
 
-class PDFLoaderConfig(LoaderConfigBase):
-    type: Literal["pdf"] = "pdf"
-    extract_images: bool = Field(default=True, description="Extract images from PDF")
-    
-class TextLoaderConfig(LoaderConfigBase):
-    type: Literal["text"] = "text"
-    encoding: str = Field(default="utf-8", description="Text file encoding")
-
-LoaderConfig = PDFLoaderConfig | TextLoaderConfig
-
-# Splitter Configurations
-class SplitterConfigBase(BaseModel):
-    type: str
-
-class RecursiveSplitterConfig(SplitterConfigBase):
-    type: Literal["recursive"] = "recursive"
-    chunk_size: int = Field(default=1000, ge=100, le=4000, description="Size of each chunk")
-    chunk_overlap: int = Field(default=200, ge=0, le=1000, description="Overlap between chunks")
-    add_start_index: bool = Field(default=True, description="Add start index to metadata")
-
-class SentenceTransformerSplitterConfig(SplitterConfigBase):
-    type: Literal["sentence_transformer"] = "sentence_transformer"
-    model_name: str = Field(default="DeepVk/USER-bge-m3", description="Model for tokenization")
-    chunk_size: int = Field(default=256, ge=50, le=512, description="Token chunk size")
-    chunk_overlap: int = Field(default=50, ge=0, le=256, description="Token overlap")
-
-SplitterConfig = RecursiveSplitterConfig | SentenceTransformerSplitterConfig
-
-# Embedding Configurations
-class EmbeddingConfigBase(BaseModel):
-    type: str
-
-class HuggingFaceEmbeddingConfig(EmbeddingConfigBase):
-    type: Literal["huggingface"] = "huggingface"
-    model_name: str = Field(default="DeepVk/USER-bge-m3", description="HuggingFace model name")
-    device: Literal["cpu", "cuda"] = Field(default="cpu", description="Device to use")
-    normalize_embeddings: bool = Field(default=True, description="Normalize embeddings")
-    cache_folder: str = Field(default="./transformers_models", description="Cache directory")
-
-EmbeddingConfig = HuggingFaceEmbeddingConfig
-
-# Database Configurations
-class DatabaseConfigBase(BaseModel):
-    type: str
-
-class ChromaDBConfig(DatabaseConfigBase):
-    type: Literal["chroma"] = "chroma"
-    collection_name: str = Field(default="example_collection", description="Collection name")
-    persist_directory: str = Field(default="./chroma_langchain_db", description="Storage directory")
-
-class QdrantDBConfig(DatabaseConfigBase):
-    type: Literal["qdrant"] = "qdrant"
-    url: str = Field(default="http://localhost:6333", description="Qdrant server URL")
-    collection_name: str = Field(default="my_documents", description="Collection name")
-    api_key: Optional[str] = Field(default=None, description="API key for Qdrant Cloud")
-
-DatabaseConfig = ChromaDBConfig | QdrantDBConfig
-
-# Pipeline Configuration
-class PipelineConfig(BaseModel):
-    name: str = Field(default="default_pipeline", description="Pipeline name")
-    loader: LoaderConfig = Field(..., description="Loader configuration")
-    splitter: SplitterConfig = Field(..., description="Splitter configuration")
-    embedding: EmbeddingConfig = Field(..., description="Embedding configuration")
-    database: DatabaseConfig = Field(..., description="Database configuration")
-
-# Response Models
-class ComponentInfo(BaseModel):
-    id: str
-    name: str
-    description: str
-    config_schema: Dict[str, Any]
-
-class PipelineResponse(BaseModel):
-    pipeline_id: str
-    config: PipelineConfig
-    created_at: datetime
-
-class ProcessingStatus(BaseModel):
-    task_id: str
-    status: Literal["pending", "processing", "completed", "failed"]
-    progress: Optional[float] = None
-    message: Optional[str] = None
-    error: Optional[str] = None
+# In-memory cache for quick access (synced with DB)
+pipelines_cache: Dict[str, PipelineConfig] = {}
+tasks_cache: Dict[str, ProcessingStatus] = {}
 
 # ==========================================
 # REGISTRY & STORAGE
@@ -168,8 +105,8 @@ class ComponentRegistry:
     }
 
 # Database manager (replace in-memory storage)
-from services.database import DatabaseManager
-from services.pipeline_service import PipelineProcessor, PipelineValidator
+from app.services.database import DatabaseManager
+from app.services.pipeline_service import PipelineProcessor, PipelineValidator
 
 db_manager = DatabaseManager()
 
@@ -183,7 +120,7 @@ tasks_cache: Dict[str, ProcessingStatus] = {}
 
 @app.get("/")
 async def root():
-    return {"message": "RAG Pipeline API", "version": "1.0.9"}
+    return {"message": "RAG Pipeline API", "version": "1.0.0"}
 
 # Loaders
 @app.get("/api/loaders", response_model=List[ComponentInfo])

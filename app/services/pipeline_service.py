@@ -14,8 +14,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
-# Import your config models
-from main import (
+# Import config models from models package
+from app.models.configs import (
     PipelineConfig,
     LoaderConfig,
     PDFLoaderConfig,

@@ -7,5 +7,4 @@ app_config.json
 Data_sort
 transformers_models
 MD(чанки)
-app/__pycache__
-app/services/__pycache__
+*__pycache__
