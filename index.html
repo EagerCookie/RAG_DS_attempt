@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,7 +24,7 @@
             margin: 0 auto;
             background: white;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             overflow: hidden;
         }
 
@@ -68,8 +69,18 @@
             color: #555;
         }
 
-        select, input[type="text"], input[type="number"], input[type="file"] {
-            width: 100%;
+        .label-description {
+            font-size: 0.85em;
+            color: #777;
+            font-weight: normal;
+            margin-left: 5px;
+        }
+
+        select,
+        input[type="text"],
+        input[type="number"],
+        input[type="file"],
+        input[type="checkbox"] {
             padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
@@ -77,16 +88,46 @@
             transition: border-color 0.3s;
         }
 
-        select:focus, input:focus {
+        select,
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+
+        select:focus,
+        input:focus {
             outline: none;
             border-color: #667eea;
         }
 
+        .dynamic-params {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .dynamic-params h3 {
+            font-size: 1.1em;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
         .param-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 15px;
-            margin-top: 15px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
         }
 
         button {
@@ -103,7 +144,7 @@
             margin-top: 20px;
         }
 
-        button:hover {
+        button:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
         }
@@ -198,8 +239,37 @@
             font-size: 0.9em;
             margin-top: 5px;
         }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-style: italic;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -222,9 +292,13 @@
                 <h2>📄 1. Загрузчик документов</h2>
                 <div class="form-group">
                     <label>Тип загрузчика</label>
-                    <select id="loaderType">
+                    <select id="loaderType" onchange="loadLoaderParams()">
                         <option value="">Загрузка...</option>
                     </select>
+                </div>
+                <div id="loaderParams" class="dynamic-params" style="display: none;">
+                    <h3>Параметры загрузчика</h3>
+                    <div id="loaderParamsContent" class="param-grid"></div>
                 </div>
             </div>
 
@@ -233,19 +307,13 @@
                 <h2>✂️ 2. Разделитель текста</h2>
                 <div class="form-group">
                     <label>Тип разделителя</label>
-                    <select id="splitterType">
+                    <select id="splitterType" onchange="loadSplitterParams()">
                         <option value="">Загрузка...</option>
                     </select>
                 </div>
-                <div class="param-grid">
-                    <div class="form-group">
-                        <label>Размер чанка</label>
-                        <input type="number" id="chunkSize" value="1000" min="100" max="4000">
-                    </div>
-                    <div class="form-group">
-                        <label>Перекрытие</label>
-                        <input type="number" id="chunkOverlap" value="200" min="0" max="1000">
-                    </div>
+                <div id="splitterParams" class="dynamic-params" style="display: none;">
+                    <h3>Параметры разделителя</h3>
+                    <div id="splitterParamsContent" class="param-grid"></div>
                 </div>
             </div>
 
@@ -254,13 +322,13 @@
                 <h2>🧠 3. Модель эмбеддингов</h2>
                 <div class="form-group">
                     <label>Тип эмбеддинга</label>
-                    <select id="embeddingType">
+                    <select id="embeddingType" onchange="loadEmbeddingParams()">
                         <option value="">Загрузка...</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Название модели</label>
-                    <input type="text" id="embeddingModel" value="DeepVk/USER-bge-m3">
+                <div id="embeddingParams" class="dynamic-params" style="display: none;">
+                    <h3>Параметры эмбеддинга</h3>
+                    <div id="embeddingParamsContent" class="param-grid"></div>
                 </div>
             </div>
 
@@ -269,13 +337,13 @@
                 <h2>💾 4. Векторная база данных</h2>
                 <div class="form-group">
                     <label>Тип базы данных</label>
-                    <select id="databaseType">
+                    <select id="databaseType" onchange="loadDatabaseParams()">
                         <option value="">Загрузка...</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Имя коллекции</label>
-                    <input type="text" id="collectionName" value="my_collection">
+                <div id="databaseParams" class="dynamic-params" style="display: none;">
+                    <h3>Параметры базы данных</h3>
+                    <div id="databaseParamsContent" class="param-grid"></div>
                 </div>
             </div>
 
@@ -311,7 +379,22 @@
 
     <script>
         const API_URL = 'http://localhost:8000';
-        let pipelineId = null;
+
+        // Store component schemas
+        let componentSchemas = {
+            loaders: {},
+            splitters: {},
+            embeddings: {},
+            databases: {}
+        };
+
+        // Store current parameter values
+        let currentParams = {
+            loader: {},
+            splitter: {},
+            embedding: {},
+            database: {}
+        };
 
         // Load components on page load
         window.onload = async () => {
@@ -321,43 +404,275 @@
             await loadDatabases();
         };
 
+        // ==========================================
+        // LOAD COMPONENT LISTS
+        // ==========================================
+
         async function loadLoaders() {
-            const response = await fetch(`${API_URL}/api/loaders`);
-            const loaders = await response.json();
-            const select = document.getElementById('loaderType');
-            select.innerHTML = loaders.map(l => 
-                `<option value="${l.id}">${l.name}</option>`
-            ).join('');
+            try {
+                const response = await fetch(`${API_URL}/api/loaders`);
+                const loaders = await response.json();
+                const select = document.getElementById('loaderType');
+
+                select.innerHTML = '<option value="">-- Выберите загрузчик --</option>' +
+                    loaders.map(l => {
+                        componentSchemas.loaders[l.id] = l.config_schema;
+                        return `<option value="${l.id}">${l.name}</option>`;
+                    }).join('');
+            } catch (error) {
+                console.error('Error loading loaders:', error);
+                showStatus('Ошибка загрузки списка загрузчиков', 'error');
+            }
         }
 
         async function loadSplitters() {
-            const response = await fetch(`${API_URL}/api/splitters`);
-            const splitters = await response.json();
-            const select = document.getElementById('splitterType');
-            select.innerHTML = splitters.map(s => 
-                `<option value="${s.id}">${s.name}</option>`
-            ).join('');
+            try {
+                const response = await fetch(`${API_URL}/api/splitters`);
+                const splitters = await response.json();
+                const select = document.getElementById('splitterType');
+
+                select.innerHTML = '<option value="">-- Выберите разделитель --</option>' +
+                    splitters.map(s => {
+                        componentSchemas.splitters[s.id] = s.config_schema;
+                        return `<option value="${s.id}">${s.name}</option>`;
+                    }).join('');
+            } catch (error) {
+                console.error('Error loading splitters:', error);
+            }
         }
 
         async function loadEmbeddings() {
-            const response = await fetch(`${API_URL}/api/embeddings`);
-            const embeddings = await response.json();
-            const select = document.getElementById('embeddingType');
-            select.innerHTML = embeddings.map(e => 
-                `<option value="${e.id}">${e.name}</option>`
-            ).join('');
+            try {
+                const response = await fetch(`${API_URL}/api/embeddings`);
+                const embeddings = await response.json();
+                const select = document.getElementById('embeddingType');
+
+                select.innerHTML = '<option value="">-- Выберите модель --</option>' +
+                    embeddings.map(e => {
+                        componentSchemas.embeddings[e.id] = e.config_schema;
+                        return `<option value="${e.id}">${e.name}</option>`;
+                    }).join('');
+            } catch (error) {
+                console.error('Error loading embeddings:', error);
+            }
         }
 
         async function loadDatabases() {
-            const response = await fetch(`${API_URL}/api/databases`);
-            const databases = await response.json();
-            const select = document.getElementById('databaseType');
-            select.innerHTML = databases.map(d => 
-                `<option value="${d.id}">${d.name}</option>`
-            ).join('');
+            try {
+                const response = await fetch(`${API_URL}/api/databases`);
+                const databases = await response.json();
+                const select = document.getElementById('databaseType');
+
+                select.innerHTML = '<option value="">-- Выберите базу данных --</option>' +
+                    databases.map(d => {
+                        componentSchemas.databases[d.id] = d.config_schema;
+                        return `<option value="${d.id}">${d.name}</option>`;
+                    }).join('');
+            } catch (error) {
+                console.error('Error loading databases:', error);
+            }
         }
 
-        // File input handler
+        // ==========================================
+        // DYNAMIC PARAMETER LOADING
+        // ==========================================
+
+        function loadLoaderParams() {
+            const selectedType = document.getElementById('loaderType').value;
+            if (!selectedType) {
+                document.getElementById('loaderParams').style.display = 'none';
+                return;
+            }
+
+            const schema = componentSchemas.loaders[selectedType];
+            renderParams('loader', schema, 'loaderParamsContent');
+            document.getElementById('loaderParams').style.display = 'block';
+        }
+
+        function loadSplitterParams() {
+            const selectedType = document.getElementById('splitterType').value;
+            if (!selectedType) {
+                document.getElementById('splitterParams').style.display = 'none';
+                return;
+            }
+
+            const schema = componentSchemas.splitters[selectedType];
+            renderParams('splitter', schema, 'splitterParamsContent');
+            document.getElementById('splitterParams').style.display = 'block';
+        }
+
+        function loadEmbeddingParams() {
+            const selectedType = document.getElementById('embeddingType').value;
+            if (!selectedType) {
+                document.getElementById('embeddingParams').style.display = 'none';
+                return;
+            }
+
+            const schema = componentSchemas.embeddings[selectedType];
+            renderParams('embedding', schema, 'embeddingParamsContent');
+            document.getElementById('embeddingParams').style.display = 'block';
+        }
+
+        function loadDatabaseParams() {
+            const selectedType = document.getElementById('databaseType').value;
+            if (!selectedType) {
+                document.getElementById('databaseParams').style.display = 'none';
+                return;
+            }
+
+            const schema = componentSchemas.databases[selectedType];
+            renderParams('database', schema, 'databaseParamsContent');
+            document.getElementById('databaseParams').style.display = 'block';
+        }
+
+        // ==========================================
+        // RENDER PARAMETERS DYNAMICALLY
+        // ==========================================
+
+        function renderParams(componentType, schema, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            if (!schema || !schema.properties) {
+                container.innerHTML = '<div class="empty-state">Нет настраиваемых параметров</div>';
+                return;
+            }
+
+            const properties = schema.properties;
+
+            // Skip 'type' field as it's already selected
+            Object.keys(properties).forEach(key => {
+                if (key === 'type') return;
+
+                const prop = properties[key];
+                const isRequired = schema.required && schema.required.includes(key);
+
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group';
+
+                // Create label
+                const label = document.createElement('label');
+                label.textContent = formatFieldName(key);
+                if (isRequired) {
+                    label.innerHTML += ' <span style="color: red;">*</span>';
+                }
+                if (prop.description) {
+                    label.innerHTML += `<span class="label-description">(${prop.description})</span>`;
+                }
+                formGroup.appendChild(label);
+
+                // Create input based on type
+                const input = createInputForType(componentType, key, prop);
+                formGroup.appendChild(input);
+
+                container.appendChild(formGroup);
+            });
+        }
+
+        function createInputForType(componentType, key, prop) {
+            const inputId = `${componentType}_${key}`;
+            let input;
+
+            // Check if it's a boolean
+            if (prop.type === 'boolean') {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'checkbox-group';
+
+                input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = inputId;
+                input.checked = prop.default !== undefined ? prop.default : false;
+
+                const label = document.createElement('label');
+                label.htmlFor = inputId;
+                label.textContent = 'Включено';
+                label.style.fontWeight = 'normal';
+
+                wrapper.appendChild(input);
+                wrapper.appendChild(label);
+
+                input.addEventListener('change', (e) => {
+                    currentParams[componentType][key] = e.target.checked;
+                });
+
+                currentParams[componentType][key] = input.checked;
+                return wrapper;
+            }
+
+            // Check if it's an enum (Literal in Pydantic)
+            if (prop.enum) {
+                input = document.createElement('select');
+                input.id = inputId;
+
+                prop.enum.forEach(value => {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = value;
+                    if (value === prop.default) {
+                        option.selected = true;
+                    }
+                    input.appendChild(option);
+                });
+
+                input.addEventListener('change', (e) => {
+                    currentParams[componentType][key] = e.target.value;
+                });
+
+                currentParams[componentType][key] = input.value;
+                return input;
+            }
+
+            // Number input
+            if (prop.type === 'integer' || prop.type === 'number') {
+                input = document.createElement('input');
+                input.type = 'number';
+                input.id = inputId;
+
+                if (prop.minimum !== undefined) input.min = prop.minimum;
+                if (prop.maximum !== undefined) input.max = prop.maximum;
+                if (prop.default !== undefined) input.value = prop.default;
+
+                input.addEventListener('input', (e) => {
+                    const value = prop.type === 'integer' ?
+                        parseInt(e.target.value) :
+                        parseFloat(e.target.value);
+                    currentParams[componentType][key] = isNaN(value) ? null : value;
+                });
+
+                currentParams[componentType][key] = input.value ?
+                    (prop.type === 'integer' ? parseInt(input.value) : parseFloat(input.value)) :
+                    null;
+                return input;
+            }
+
+            // Text input (default)
+            input = document.createElement('input');
+            input.type = 'text';
+            input.id = inputId;
+            if (prop.default !== undefined) {
+                input.value = prop.default;
+            }
+
+            input.addEventListener('input', (e) => {
+                currentParams[componentType][key] = e.target.value;
+            });
+
+            currentParams[componentType][key] = input.value;
+            return input;
+        }
+
+        function formatFieldName(key) {
+            // Convert snake_case to Title Case
+            return key
+                .split('_')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        }
+
+        // ==========================================
+        // FILE HANDLING
+        // ==========================================
+
         document.getElementById('fileInput').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -370,6 +685,10 @@
             }
         });
 
+        // ==========================================
+        // PIPELINE PROCESSING
+        // ==========================================
+
         async function processPipeline() {
             const file = document.getElementById('fileInput').files[0];
             if (!file) {
@@ -377,33 +696,43 @@
                 return;
             }
 
-            // Disable button
+            // Validate selections
+            const loaderType = document.getElementById('loaderType').value;
+            const splitterType = document.getElementById('splitterType').value;
+            const embeddingType = document.getElementById('embeddingType').value;
+            const databaseType = document.getElementById('databaseType').value;
+
+            if (!loaderType || !splitterType || !embeddingType || !databaseType) {
+                alert('Пожалуйста, выберите все компоненты пайплайна');
+                return;
+            }
+
             const btn = document.getElementById('processBtn');
             btn.disabled = true;
 
             try {
-                // Create pipeline config
+                // Build config with dynamic parameters
                 const config = {
                     name: document.getElementById('pipelineName').value,
                     loader: {
-                        type: document.getElementById('loaderType').value
+                        type: loaderType,
+                        ...currentParams.loader
                     },
                     splitter: {
-                        type: document.getElementById('splitterType').value,
-                        chunk_size: parseInt(document.getElementById('chunkSize').value),
-                        chunk_overlap: parseInt(document.getElementById('chunkOverlap').value)
+                        type: splitterType,
+                        ...currentParams.splitter
                     },
                     embedding: {
-                        type: document.getElementById('embeddingType').value,
-                        model_name: document.getElementById('embeddingModel').value,
-                        device: 'cpu',
-                        normalize_embeddings: true
+                        type: embeddingType,
+                        ...currentParams.embedding
                     },
                     database: {
-                        type: document.getElementById('databaseType').value,
-                        collection_name: document.getElementById('collectionName').value
+                        type: databaseType,
+                        ...currentParams.database
                     }
                 };
+
+                console.log('Pipeline config:', config);
 
                 // Create pipeline
                 showStatus('Создание пайплайна...', 'info');
@@ -412,8 +741,14 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(config)
                 });
+
+                if (!pipelineResp.ok) {
+                    const error = await pipelineResp.json();
+                    throw new Error(error.detail || 'Ошибка создания пайплайна');
+                }
+
                 const pipelineData = await pipelineResp.json();
-                pipelineId = pipelineData.pipeline_id;
+                const pipelineId = pipelineData.pipeline_id;
 
                 // Upload file
                 showStatus('Загрузка файла...', 'info');
@@ -424,6 +759,12 @@
                     `${API_URL}/api/pipelines/${pipelineId}/process`,
                     { method: 'POST', body: formData }
                 );
+
+                if (!uploadResp.ok) {
+                    const error = await uploadResp.json();
+                    throw new Error(error.detail || 'Ошибка загрузки файла');
+                }
+
                 const uploadData = await uploadResp.json();
                 const taskId = uploadData.task_id;
 
@@ -478,7 +819,7 @@
         function showResults(task) {
             const resultsSection = document.getElementById('resultsSection');
             resultsSection.style.display = 'block';
-            
+
             const statsEl = document.getElementById('stats');
             statsEl.innerHTML = `
                 <div class="stat-card">
@@ -486,11 +827,12 @@
                     <div class="stat-label">Успешно</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value" id="pipelineIdStat">${pipelineId.substring(0, 8)}...</div>
-                    <div class="stat-label">Pipeline ID</div>
+                    <div class="stat-value">${Math.round((task.progress || 0) * 100)}%</div>
+                    <div class="stat-label">Прогресс</div>
                 </div>
             `;
         }
     </script>
 </body>
+
 </html>
