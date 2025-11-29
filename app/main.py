@@ -7,7 +7,7 @@ import hashlib
 import uuid
 from datetime import datetime
 
-app = FastAPI(title="RAG Pipeline API", version="1.0.0")
+app = FastAPI(title="RAG Pipeline API", version="1.0.8")
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -167,10 +167,15 @@ class ComponentRegistry:
         }
     }
 
-# In-memory storage (replace with proper DB in production)
-pipelines_store: Dict[str, PipelineConfig] = {}
-tasks_store: Dict[str, ProcessingStatus] = {}
-processed_files: Dict[str, str] = {}  # file_hash -> filename
+# Database manager (replace in-memory storage)
+from services.database import DatabaseManager
+from services.pipeline_service import PipelineProcessor, PipelineValidator
+
+db_manager = DatabaseManager()
+
+# In-memory cache for quick access (synced with DB)
+pipelines_cache: Dict[str, PipelineConfig] = {}
+tasks_cache: Dict[str, ProcessingStatus] = {}
 
 # ==========================================
 # API ENDPOINTS
@@ -269,7 +274,45 @@ async def list_databases():
 async def create_pipeline(config: PipelineConfig):
     """Create a new pipeline configuration"""
     pipeline_id = str(uuid.uuid4())
-    pipelines_store[pipeline_id] = config
+    
+    # Validate configuration
+    warnings = PipelineValidator.validate_compatibility(config)
+    
+    # Save to database
+    db_manager.save_pipeline(
+        pipeline_id=pipeline_id,
+        name=config.name,
+        config=config.model_dump_json()
+    )
+    
+    # Cache
+    pipelines_cache[pipeline_id] = config
+    
+    response = PipelineResponse(
+        pipeline_id=pipeline_id,
+        config=config,
+        created_at=datetime.now()
+    )
+    
+    if warnings:
+        response.warnings = warnings
+    
+    return response
+
+@app.get("/api/pipelines/{pipeline_id}", response_model=PipelineResponse)
+async def get_pipeline(pipeline_id: str):
+    """Get pipeline configuration"""
+    # Try cache first
+    if pipeline_id in pipelines_cache:
+        config = pipelines_cache[pipeline_id]
+    else:
+        # Load from database
+        pipeline_data = db_manager.get_pipeline(pipeline_id)
+        if not pipeline_data:
+            raise HTTPException(status_code=404, detail="Pipeline not found")
+        
+        config = PipelineConfig.model_validate_json(pipeline_data['config'])
+        pipelines_cache[pipeline_id] = config
     
     return PipelineResponse(
         pipeline_id=pipeline_id,
@@ -277,25 +320,11 @@ async def create_pipeline(config: PipelineConfig):
         created_at=datetime.now()
     )
 
-@app.get("/api/pipelines/{pipeline_id}", response_model=PipelineResponse)
-async def get_pipeline(pipeline_id: str):
-    """Get pipeline configuration"""
-    if pipeline_id not in pipelines_store:
-        raise HTTPException(status_code=404, detail="Pipeline not found")
-    
-    return PipelineResponse(
-        pipeline_id=pipeline_id,
-        config=pipelines_store[pipeline_id],
-        created_at=datetime.now()
-    )
-
 @app.get("/api/pipelines")
 async def list_pipelines():
     """List all pipelines"""
-    return [
-        {"pipeline_id": pid, "name": config.name}
-        for pid, config in pipelines_store.items()
-    ]
+    pipelines = db_manager.list_pipelines()
+    return pipelines
 
 @app.post("/api/pipelines/{pipeline_id}/process")
 async def process_file(
@@ -304,23 +333,33 @@ async def process_file(
     file: UploadFile = File(...)
 ):
     """Process a file using the specified pipeline"""
-    if pipeline_id not in pipelines_store:
+    # Load pipeline config
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
         raise HTTPException(status_code=404, detail="Pipeline not found")
     
-    # Calculate file hash
+    # Read file content
     content = await file.read()
     file_hash = hashlib.md5(content).hexdigest()
     
     # Check for duplicates
-    if file_hash in processed_files:
+    existing = db_manager.file_exists(file_hash)
+    if existing:
         raise HTTPException(
             status_code=409,
-            detail=f"File already processed: {processed_files[file_hash]}"
+            detail=f"File '{existing[0]}' already processed on {existing[1]}"
         )
     
     # Create task
     task_id = str(uuid.uuid4())
-    tasks_store[task_id] = ProcessingStatus(
+    db_manager.create_task(
+        task_id=task_id,
+        pipeline_id=pipeline_id,
+        filename=file.filename,
+        status="pending"
+    )
+    
+    tasks_cache[task_id] = ProcessingStatus(
         task_id=task_id,
         status="pending",
         message="Task queued"
@@ -333,7 +372,8 @@ async def process_file(
         pipeline_id,
         file.filename,
         content,
-        file_hash
+        file_hash,
+        len(content)
     )
     
     return {
@@ -345,10 +385,25 @@ async def process_file(
 @app.get("/api/tasks/{task_id}", response_model=ProcessingStatus)
 async def get_task_status(task_id: str):
     """Get processing task status"""
-    if task_id not in tasks_store:
+    # Try cache first
+    if task_id in tasks_cache:
+        return tasks_cache[task_id]
+    
+    # Load from database
+    task_data = db_manager.get_task(task_id)
+    if not task_data:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    return tasks_store[task_id]
+    status = ProcessingStatus(
+        task_id=task_data['id'],
+        status=task_data['status'],
+        progress=task_data['progress'],
+        message=task_data['message'],
+        error=task_data['error']
+    )
+    tasks_cache[task_id] = status
+    
+    return status
 
 # ==========================================
 # BACKGROUND PROCESSING
@@ -359,42 +414,78 @@ async def process_document_task(
     pipeline_id: str,
     filename: str,
     content: bytes,
-    file_hash: str
+    file_hash: str,
+    file_size: int
 ):
     """Background task for document processing"""
+    
+    def update_progress(progress: float, message: str):
+        """Helper to update task progress"""
+        db_manager.update_task(
+            task_id=task_id,
+            progress=progress,
+            message=message
+        )
+        if task_id in tasks_cache:
+            tasks_cache[task_id].progress = progress
+            tasks_cache[task_id].message = message
+    
     try:
-        tasks_store[task_id].status = "processing"
-        tasks_store[task_id].message = "Loading document..."
+        # Update status to processing
+        db_manager.update_task(task_id=task_id, status="processing")
+        if task_id in tasks_cache:
+            tasks_cache[task_id].status = "processing"
         
-        config = pipelines_store[pipeline_id]
+        # Load pipeline config
+        pipeline_data = db_manager.get_pipeline(pipeline_id)
+        config = PipelineConfig.model_validate_json(pipeline_data['config'])
         
-        # Here you would implement the actual processing logic
-        # This is a placeholder that matches your original flow:
+        # Create processor
+        processor = PipelineProcessor(config)
         
-        # 1. Load document (using config.loader)
-        tasks_store[task_id].progress = 0.25
-        tasks_store[task_id].message = "Document loaded, splitting..."
+        # Process document
+        results = await processor.process(
+            content=content,
+            filename=filename,
+            progress_callback=update_progress
+        )
         
-        # 2. Split text (using config.splitter)
-        tasks_store[task_id].progress = 0.5
-        tasks_store[task_id].message = "Text split, creating embeddings..."
-        
-        # 3. Create embeddings (using config.embedding)
-        tasks_store[task_id].progress = 0.75
-        tasks_store[task_id].message = "Embeddings created, saving to database..."
-        
-        # 4. Save to vector DB (using config.database)
-        tasks_store[task_id].progress = 1.0
+        # Save file record
+        db_manager.add_file(
+            filename=filename,
+            file_hash=file_hash,
+            file_size=file_size,
+            pipeline_id=pipeline_id,
+            chunks_count=results['chunks_created'],
+            metadata=results
+        )
         
         # Mark as completed
-        processed_files[file_hash] = filename
-        tasks_store[task_id].status = "completed"
-        tasks_store[task_id].message = f"Successfully processed {filename}"
+        db_manager.update_task(
+            task_id=task_id,
+            status="completed",
+            progress=1.0,
+            message=f"Successfully processed {filename}"
+        )
+        
+        if task_id in tasks_cache:
+            tasks_cache[task_id].status = "completed"
+            tasks_cache[task_id].progress = 1.0
+            tasks_cache[task_id].message = f"Successfully processed {filename}"
         
     except Exception as e:
-        tasks_store[task_id].status = "failed"
-        tasks_store[task_id].error = str(e)
-        tasks_store[task_id].message = "Processing failed"
+        error_msg = str(e)
+        db_manager.update_task(
+            task_id=task_id,
+            status="failed",
+            error=error_msg,
+            message="Processing failed"
+        )
+        
+        if task_id in tasks_cache:
+            tasks_cache[task_id].status = "failed"
+            tasks_cache[task_id].error = error_msg
+            tasks_cache[task_id].message = "Processing failed"
 
 if __name__ == "__main__":
     import uvicorn
