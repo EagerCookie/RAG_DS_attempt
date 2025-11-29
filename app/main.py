@@ -183,7 +183,7 @@ tasks_cache: Dict[str, ProcessingStatus] = {}
 
 @app.get("/")
 async def root():
-    return {"message": "RAG Pipeline API", "version": "1.0.0"}
+    return {"message": "RAG Pipeline API", "version": "1.0.9"}
 
 # Loaders
 @app.get("/api/loaders", response_model=List[ComponentInfo])
