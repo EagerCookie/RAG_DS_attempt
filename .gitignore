@@ -7,6 +7,5 @@ app_config.json
 Data_sort
 transformers_models
 MD(чанки)
-deprecated
 app/__pycache__
 app/services/__pycache__
