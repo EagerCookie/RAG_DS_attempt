@@ -38,13 +38,13 @@ embeddings = HuggingFaceEmbeddings(
 
 # ============= ВЕКТОРНОЕ ХРАНИЛИЩЕ =============
 vector_store = Chroma(
-    collection_name="example_collection",
+    collection_name="example_collection_b2be69b0",  # ← ИЗМЕНЕНО!
     embedding_function=embeddings,
-    persist_directory="./chroma_langchain_db/e1dc45d5",
+    persist_directory="./chroma_langchain_db/b2be69b0",
 )
 
 # ============= CHAT MODEL =============
-model = ChatOpenAI(model="gpt-4o", temperature=0)
+model = ChatOpenAI(model="gpt-4o", temperature=0, n=1)
 
 # ============= НАСТРОЙКА RAGAS LLM И EMBEDDINGS =============
 # Оборачиваем LLM и embeddings для RAGAS
