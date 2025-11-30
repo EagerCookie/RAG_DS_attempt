@@ -215,11 +215,19 @@ async def create_pipeline(config: PipelineConfig):
     # Validate configuration
     warnings = PipelineValidator.validate_compatibility(config)
     
+    # Generate vector DB identifier for this pipeline
+    from app.services.pipeline_service import DatabaseFactory
+    vector_db_identifier = DatabaseFactory.get_vector_db_identifier(
+        config.database, 
+        pipeline_id
+    )
+    
     # Save to database
     db_manager.save_pipeline(
         pipeline_id=pipeline_id,
         name=config.name,
-        config=config.model_dump_json()
+        config=config.model_dump_json(),
+        vector_db_identifier=vector_db_identifier
     )
     
     # Cache
@@ -279,12 +287,12 @@ async def process_file(
     content = await file.read()
     file_hash = hashlib.md5(content).hexdigest()
     
-    # Check for duplicates
-    existing = db_manager.file_exists(file_hash)
+    # Check for duplicates IN THIS SPECIFIC PIPELINE
+    existing = db_manager.file_exists_in_pipeline(file_hash, pipeline_id)
     if existing:
         raise HTTPException(
             status_code=409,
-            detail=f"File '{existing[0]}' already processed on {existing[1]}"
+            detail=f"File '{existing[0]}' already processed in this pipeline on {existing[1]}"
         )
     
     # Create task
@@ -293,6 +301,7 @@ async def process_file(
         task_id=task_id,
         pipeline_id=pipeline_id,
         filename=file.filename,
+        file_hash=file_hash,
         status="pending"
     )
     
@@ -345,8 +354,68 @@ async def get_task_status(task_id: str):
 # Additional endpoints
 @app.get("/api/files")
 async def list_processed_files(limit: int = 100):
-    """List processed files"""
+    """List all processed files across all pipelines"""
     return db_manager.get_processed_files(limit=limit)
+
+@app.get("/api/pipelines/{pipeline_id}/files")
+async def list_pipeline_files(pipeline_id: str, limit: int = 100):
+    """List files processed by specific pipeline"""
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    files = db_manager.get_files_by_pipeline(pipeline_id, limit=limit)
+    return {
+        "pipeline_id": pipeline_id,
+        "pipeline_name": pipeline_data['name'],
+        "vector_db_identifier": pipeline_data['vector_db_identifier'],
+        "files": files,
+        "total_files": len(files)
+    }
+
+@app.get("/api/vector-databases")
+async def list_vector_databases():
+    """List all vector databases and their statistics"""
+    pipelines = db_manager.list_pipelines()
+    
+    # Group by vector_db_identifier
+    vector_dbs = {}
+    for pipeline in pipelines:
+        vdb_id = pipeline['vector_db_identifier']
+        if vdb_id not in vector_dbs:
+            stats = db_manager.get_vector_db_statistics(vdb_id)
+            vector_dbs[vdb_id] = stats
+    
+    return {
+        "vector_databases": list(vector_dbs.values()),
+        "total_count": len(vector_dbs)
+    }
+
+@app.get("/api/vector-databases/{vector_db_identifier}/files")
+async def list_vector_db_files(vector_db_identifier: str, limit: int = 100):
+    """List all files in specific vector database"""
+    files = db_manager.get_files_by_vector_db(vector_db_identifier, limit=limit)
+    stats = db_manager.get_vector_db_statistics(vector_db_identifier)
+    
+    return {
+        "vector_db_identifier": vector_db_identifier,
+        "statistics": stats,
+        "files": files,
+        "total_files": len(files)
+    }
+
+@app.get("/api/files/{file_hash}/duplicates")
+async def get_file_duplicates(file_hash: str):
+    """Get all occurrences of a file across all pipelines"""
+    duplicates = db_manager.get_file_duplicates(file_hash)
+    
+    return {
+        "file_hash": file_hash,
+        "occurrences": duplicates,
+        "total_occurrences": len(duplicates),
+        "unique_pipelines": len(set(d['pipeline_id'] for d in duplicates)),
+        "unique_vector_dbs": len(set(d['vector_db_identifier'] for d in duplicates))
+    }
 
 @app.get("/api/statistics")
 async def get_statistics():
@@ -355,7 +424,7 @@ async def get_statistics():
 
 @app.delete("/api/pipelines/{pipeline_id}")
 async def delete_pipeline(pipeline_id: str):
-    """Delete a pipeline"""
+    """Delete a pipeline and all its files"""
     success = db_manager.delete_pipeline(pipeline_id)
     if not success:
         raise HTTPException(status_code=404, detail="Pipeline not found")
@@ -364,7 +433,7 @@ async def delete_pipeline(pipeline_id: str):
     if pipeline_id in pipelines_cache:
         del pipelines_cache[pipeline_id]
     
-    return {"message": "Pipeline deleted successfully"}
+    return {"message": "Pipeline and all associated files deleted successfully"}
 
 @app.post("/api/pipelines/{pipeline_id}/validate")
 async def validate_pipeline(pipeline_id: str):
@@ -416,9 +485,10 @@ async def process_document_task(
         # Load pipeline config
         pipeline_data = db_manager.get_pipeline(pipeline_id)
         config = PipelineConfig.model_validate_json(pipeline_data['config'])
+        vector_db_identifier = pipeline_data['vector_db_identifier']
         
-        # Create processor
-        processor = PipelineProcessor(config)
+        # Create processor with pipeline_id
+        processor = PipelineProcessor(config, pipeline_id)
         
         # Process document
         results = await processor.process(
@@ -427,12 +497,13 @@ async def process_document_task(
             progress_callback=update_progress
         )
         
-        # Save file record
+        # Save file record with vector DB identifier
         db_manager.add_file(
             filename=filename,
             file_hash=file_hash,
             file_size=file_size,
             pipeline_id=pipeline_id,
+            vector_db_identifier=vector_db_identifier,
             chunks_count=results['chunks_created'],
             metadata=results
         )

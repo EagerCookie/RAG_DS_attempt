@@ -87,23 +87,46 @@ class DatabaseFactory:
     """Factory for creating vector database connections"""
     
     @staticmethod
-    def save(config: DatabaseConfig, documents: List[Document], embeddings: Any):
+    def get_vector_db_identifier(config: DatabaseConfig, pipeline_id: str) -> str:
+        """
+        Generate unique identifier for vector database based on config and pipeline
+        Each pipeline gets its own isolated vector database
+        """
         if isinstance(config, ChromaDBConfig):
+            # Use pipeline_id in collection name to ensure isolation
+            return f"chroma_{config.collection_name}_{pipeline_id[:8]}"
+        
+        elif isinstance(config, QdrantDBConfig):
+            # Use pipeline_id in collection name
+            return f"qdrant_{config.collection_name}_{pipeline_id[:8]}"
+        
+        else:
+            raise ValueError(f"Unknown database type: {type(config)}")
+    
+    @staticmethod
+    def save(config: DatabaseConfig, documents: List[Document], embeddings: Any, pipeline_id: str):
+        """Save documents to vector database with pipeline-specific collection"""
+        if isinstance(config, ChromaDBConfig):
+            # Create unique collection name for this pipeline
+            collection_name = f"{config.collection_name}_{pipeline_id[:8]}"
+            persist_directory = f"{config.persist_directory}/{pipeline_id[:8]}"
+            
             db = Chroma(
-                collection_name=config.collection_name,
+                collection_name=collection_name,
                 embedding_function=embeddings,
-                persist_directory=config.persist_directory,
+                persist_directory=persist_directory,
             )
             return db.add_documents(documents)
         
         elif isinstance(config, QdrantDBConfig):
             # Uncomment when Qdrant is installed
             # from langchain_qdrant import Qdrant
+            # collection_name = f"{config.collection_name}_{pipeline_id[:8]}"
             # return Qdrant.from_documents(
             #     documents,
             #     embeddings,
             #     url=config.url,
-            #     collection_name=config.collection_name,
+            #     collection_name=collection_name,
             #     api_key=config.api_key
             # )
             raise NotImplementedError("Qdrant support not yet implemented")
@@ -114,8 +137,9 @@ class DatabaseFactory:
 class PipelineProcessor:
     """Main pipeline processor that orchestrates the entire flow"""
     
-    def __init__(self, config: PipelineConfig):
+    def __init__(self, config: PipelineConfig, pipeline_id: str):
         self.config = config
+        self.pipeline_id = pipeline_id
         
     async def process(
         self, 
@@ -132,13 +156,14 @@ class PipelineProcessor:
             progress_callback: Optional callback function(progress: float, message: str)
             
         Returns:
-            dict with processing results
+            dict with processing results including vector_db_identifier
         """
         results = {
             "filename": filename,
             "chunks_created": 0,
             "embeddings_dimension": 0,
-            "database_ids": []
+            "database_ids": [],
+            "vector_db_identifier": None
         }
         
         # Save content to temporary file
@@ -187,11 +212,23 @@ class PipelineProcessor:
             if progress_callback:
                 progress_callback(0.8, f"Embeddings ready (dim={len(test_vec)})")
             
-            # 4. SAVE TO DATABASE
+            # 4. SAVE TO DATABASE (with pipeline-specific collection)
             if progress_callback:
                 progress_callback(0.85, "Saving to vector database...")
             
-            db_ids = DatabaseFactory.save(self.config.database, chunks, embeddings)
+            # Generate vector DB identifier
+            vector_db_identifier = DatabaseFactory.get_vector_db_identifier(
+                self.config.database, 
+                self.pipeline_id
+            )
+            results["vector_db_identifier"] = vector_db_identifier
+            
+            db_ids = DatabaseFactory.save(
+                self.config.database, 
+                chunks, 
+                embeddings,
+                self.pipeline_id
+            )
             results["database_ids"] = db_ids if db_ids else []
             
             if progress_callback:
