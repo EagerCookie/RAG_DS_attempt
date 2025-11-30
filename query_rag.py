@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 from langchain_chroma import Chroma
 
 from langchain.agents.middleware import dynamic_prompt, ModelRequest
-# from langchain_openai import ChatOpenAI
-from langchain_deepseek import ChatDeepSeek
+from langchain_openai import ChatOpenAI
+# from langchain_deepseek import ChatDeepSeek
 from langchain.agents import create_agent
 from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -37,16 +37,16 @@ vector_store = Chroma(
 
 
 # ChatModel Area
-# model = ChatOpenAI(model="gpt-4o", temperature=0)
+model = ChatOpenAI(model="gpt-4o", temperature=0)
 
 
-model = ChatDeepSeek(
-    model="deepseek-chat",
-    temperature=0,
-    max_tokens=None,
-    timeout=None,
-    max_retries=2,   # other params...
-)
+# model = ChatDeepSeek(
+#     model="deepseek-chat",
+#     temperature=0,
+#     max_tokens=None,
+#     timeout=None,
+#     max_retries=2,   # other params...
+# )
 
 @dynamic_prompt
 def prompt_with_context(request: ModelRequest) -> str:

@@ -455,7 +455,7 @@ async def validate_pipeline(pipeline_id: str):
 # BACKGROUND PROCESSING
 # ==========================================
 
-async def process_document_task(
+def process_document_task(
     task_id: str,
     pipeline_id: str,
     filename: str,
@@ -463,7 +463,8 @@ async def process_document_task(
     file_hash: str,
     file_size: int
 ):
-    """Background task for document processing"""
+    """Background task for document processing (synchronous)"""
+    import asyncio
     
     def update_progress(progress: float, message: str):
         """Helper to update task progress"""
@@ -490,12 +491,17 @@ async def process_document_task(
         # Create processor with pipeline_id
         processor = PipelineProcessor(config, pipeline_id)
         
-        # Process document
-        results = await processor.process(
-            content=content,
-            filename=filename,
-            progress_callback=update_progress
-        )
+        # Process document (run async function in sync context)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            results = loop.run_until_complete(processor.process(
+                content=content,
+                filename=filename,
+                progress_callback=update_progress
+            ))
+        finally:
+            loop.close()
         
         # Save file record with vector DB identifier
         db_manager.add_file(
@@ -522,7 +528,13 @@ async def process_document_task(
             tasks_cache[task_id].message = f"Successfully processed {filename}"
         
     except Exception as e:
+        import traceback
         error_msg = str(e)
+        error_trace = traceback.format_exc()
+        
+        print(f"Error processing task {task_id}: {error_msg}")
+        print(error_trace)
+        
         db_manager.update_task(
             task_id=task_id,
             status="failed",

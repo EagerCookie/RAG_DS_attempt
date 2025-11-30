@@ -363,6 +363,11 @@
             <!-- Progress -->
             <div class="progress-container" id="progressContainer">
                 <h3>Обработка...</h3>
+                <div id="taskInfo"
+                    style="margin-bottom: 10px; padding: 10px; background: #f0f0f0; border-radius: 8px; font-size: 0.9em; display: none;">
+                    <strong>Task ID:</strong> <span id="taskIdDisplay">-</span><br>
+                    <strong>Файл:</strong> <span id="fileNameDisplay">-</span>
+                </div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill">0%</div>
                 </div>
@@ -709,6 +714,7 @@
 
             const btn = document.getElementById('processBtn');
             btn.disabled = true;
+            btn.textContent = 'Создание пайплайна...';
 
             try {
                 // Build config with dynamic parameters
@@ -749,8 +755,10 @@
 
                 const pipelineData = await pipelineResp.json();
                 const pipelineId = pipelineData.pipeline_id;
+                console.log('Pipeline created:', pipelineId);
 
                 // Upload file
+                btn.textContent = 'Загрузка файла...';
                 showStatus('Загрузка файла...', 'info');
                 const formData = new FormData();
                 formData.append('file', file);
@@ -768,46 +776,90 @@
                 const uploadData = await uploadResp.json();
                 const taskId = uploadData.task_id;
 
+                console.log('Task created:', taskId);
+                console.log('Upload response:', uploadData);
+
+                // Show task info
+                document.getElementById('taskInfo').style.display = 'block';
+                document.getElementById('taskIdDisplay').textContent = taskId.substring(0, 8) + '...';
+                document.getElementById('fileNameDisplay').textContent = file.name;
+
+                // Show progress immediately
+                btn.textContent = 'Обработка файла...';
+                showStatus(uploadData.message || 'Задача поставлена в очередь', 'info');
+
                 // Poll for status
                 await pollTaskStatus(taskId);
 
             } catch (error) {
+                console.error('Processing error:', error);
                 showStatus(`Ошибка: ${error.message}`, 'error');
                 btn.disabled = false;
+                btn.textContent = 'Создать пайплайн и обработать файл';
             }
         }
 
         async function pollTaskStatus(taskId) {
             const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const statusMessage = document.getElementById('statusMessage');
+
             progressContainer.style.display = 'block';
 
+            let pollCount = 0;
+            const maxPolls = 600; // 10 минут максимум (600 секунд)
+
             const interval = setInterval(async () => {
+                pollCount++;
+
+                if (pollCount > maxPolls) {
+                    clearInterval(interval);
+                    showStatus('⏱ Превышено время ожидания. Проверьте задачу позже.', 'error');
+                    document.getElementById('processBtn').disabled = false;
+                    document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
+                    return;
+                }
+
                 try {
                     const response = await fetch(`${API_URL}/api/tasks/${taskId}`);
+
+                    if (!response.ok) {
+                        console.error('Failed to fetch task status:', response.status);
+                        return; // Continue polling
+                    }
+
                     const task = await response.json();
+                    console.log('Task status:', task);
 
                     const progress = (task.progress || 0) * 100;
-                    document.getElementById('progressFill').style.width = progress + '%';
-                    document.getElementById('progressFill').textContent = Math.round(progress) + '%';
+                    progressFill.style.width = progress + '%';
+                    progressFill.textContent = Math.round(progress) + '%';
 
                     showStatus(task.message || 'Обработка...', 'info');
 
                     if (task.status === 'completed') {
                         clearInterval(interval);
+                        progressFill.style.width = '100%';
+                        progressFill.textContent = '100%';
                         showStatus('✅ Обработка завершена успешно!', 'success');
                         document.getElementById('processBtn').disabled = false;
+                        document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
                         showResults(task);
                     } else if (task.status === 'failed') {
                         clearInterval(interval);
-                        showStatus(`❌ Ошибка: ${task.error}`, 'error');
+                        showStatus(`❌ Ошибка: ${task.error || 'Неизвестная ошибка'}`, 'error');
                         document.getElementById('processBtn').disabled = false;
+                        document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
+                    } else if (task.status === 'processing') {
+                        // Update button text to show it's processing
+                        document.getElementById('processBtn').textContent =
+                            `Обработка... ${Math.round(progress)}%`;
                     }
                 } catch (error) {
-                    clearInterval(interval);
-                    showStatus(`Ошибка получения статуса: ${error.message}`, 'error');
-                    document.getElementById('processBtn').disabled = false;
+                    console.error('Error polling task status:', error);
+                    // Don't clear interval on error, might be temporary network issue
                 }
-            }, 1000);
+            }, 1000); // Poll every second
         }
 
         function showStatus(message, type) {
@@ -824,13 +876,20 @@
             statsEl.innerHTML = `
                 <div class="stat-card">
                     <div class="stat-value">✓</div>
-                    <div class="stat-label">Успешно</div>
+                    <div class="stat-label">Статус</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value">${Math.round((task.progress || 0) * 100)}%</div>
                     <div class="stat-label">Прогресс</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-value">${task.status}</div>
+                    <div class="stat-label">Состояние</div>
+                </div>
             `;
+
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
         }
     </script>
 </body>
