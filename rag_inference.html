@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Inference - Запросы к базе знаний</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 0;
+            min-height: calc(100vh - 200px);
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            border-right: 2px solid #e0e0e0;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .main-area {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        select,
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        select:focus,
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .query-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .query-input-area {
+            margin-bottom: 20px;
+        }
+
+        .query-input {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .response-area {
+            flex: 1;
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            overflow-y: auto;
+            min-height: 300px;
+        }
+
+        .response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .response-content {
+            line-height: 1.8;
+            color: #333;
+        }
+
+        .sources {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .source-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .source-item strong {
+            color: #667eea;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-loading {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            color: #1565c0;
+        }
+
+        .param-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .model-option {
+            padding: 3px 0;
+        }
+
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 RAG Inference</h1>
+            <p>Задавайте вопросы к вашей базе знаний</p>
+        </div>
+
+        <div class="content">
+            <!-- Sidebar with settings -->
+            <div class="sidebar">
+                <div class="section">
+                    <h2>📦 Выбор пайплайна</h2>
+                    <label>Пайплайн</label>
+                    <select id="pipelineSelect" onchange="loadPipelineInfo()">
+                        <option value="">Загрузка...</option>
+                    </select>
+                    <div id="pipelineInfo" class="info-box" style="display: none;">
+                        <strong>Vector DB:</strong> <span id="vectorDbId">-</span><br>
+                        <strong>Files:</strong> <span id="filesCount">-</span><br>
+                        <strong>Chunks:</strong> <span id="chunksCount">-</span>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>🧠 LLM Модель</h2>
+                    <label>Провайдер</label>
+                    <select id="llmProvider" onchange="updateModelOptions()">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="custom">Custom API</option>
+                    </select>
+
+                    <label style="margin-top: 15px;">Модель</label>
+                    <select id="llmModel">
+                        <option value="gpt-4o">gpt-4o</option>
+                    </select>
+
+                    <div id="customApiUrl" style="display: none; margin-top: 15px;">
+                        <label>API URL</label>
+                        <input type="text" id="customUrl" placeholder="http://localhost:8080/v1">
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>⚙️ Параметры RAG</h2>
+                    <div class="param-group">
+                        <div>
+                            <label>Top K документов</label>
+                            <input type="number" id="topK" value="5" min="1" max="20">
+                        </div>
+                        <div>
+                            <label>Temperature</label>
+                            <input type="number" id="temperature" value="0" min="0" max="2" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>📊 Статус</h2>
+                    <div style="margin-bottom: 10px;">
+                        <strong>Пайплайн:</strong>
+                        <span id="pipelineStatus" class="status-badge status-ready">Не выбран</span>
+                    </div>
+                    <div>
+                        <strong>LLM:</strong>
+                        <span id="llmStatus" class="status-badge status-ready">Готов</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main query area -->
+            <div class="main-area">
+                <div class="query-input-area">
+                    <label style="font-size: 1.1em; margin-bottom: 10px;">💬 Ваш вопрос:</label>
+                    <textarea id="queryInput" class="query-input"
+                        placeholder="Например: Какие типы усилителей используются для измерения биопотенциалов?"></textarea>
+                    <button id="askButton" onclick="askQuestion()" style="margin-top: 10px;">
+                        Задать вопрос
+                    </button>
+                </div>
+
+                <div class="response-area" id="responseArea">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💭</div>
+                        <p>Выберите пайплайн и задайте вопрос</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let currentPipeline = null;
+
+        // Model options for different providers
+        const MODEL_OPTIONS = {
+            openai: [
+                { value: 'gpt-4o', label: 'GPT-4o' },
+                { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+                { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+                { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
+            ],
+            anthropic: [
+                { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+                { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+                { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' }
+            ],
+            deepseek: [
+                { value: 'deepseek-chat', label: 'DeepSeek Chat' },
+                { value: 'deepseek-coder', label: 'DeepSeek Coder' }
+            ],
+            custom: [
+                { value: 'custom', label: 'Custom Model' }
+            ]
+        };
+
+        // Load pipelines on page load
+        window.onload = async () => {
+            await loadPipelines();
+        };
+
+        async function loadPipelines() {
+            try {
+                const response = await fetch(`${API_URL}/api/pipelines`);
+                const pipelines = await response.json();
+
+                const select = document.getElementById('pipelineSelect');
+                select.innerHTML = '<option value="">-- Выберите пайплайн --</option>' +
+                    pipelines.map(p =>
+                        `<option value="${p.id}">${p.name}</option>`
+                    ).join('');
+
+            } catch (error) {
+                console.error('Error loading pipelines:', error);
+                alert('Ошибка загрузки пайплайнов. Убедитесь, что API запущен.');
+            }
+        }
+
+        async function loadPipelineInfo() {
+            const pipelineId = document.getElementById('pipelineSelect').value;
+
+            if (!pipelineId) {
+                document.getElementById('pipelineInfo').style.display = 'none';
+                document.getElementById('pipelineStatus').textContent = 'Не выбран';
+                document.getElementById('pipelineStatus').className = 'status-badge status-ready';
+                currentPipeline = null;
+                return;
+            }
+
+            try {
+                // Load pipeline details
+                const pipelineResp = await fetch(`${API_URL}/api/pipelines/${pipelineId}`);
+                const pipeline = await pipelineResp.json();
+
+                // Load pipeline files
+                const filesResp = await fetch(`${API_URL}/api/pipelines/${pipelineId}/files`);
+                const filesData = await filesResp.json();
+
+                currentPipeline = {
+                    id: pipeline.pipeline_id,
+                    config: pipeline.config,
+                    vectorDbId: filesData.vector_db_identifier,
+                    filesCount: filesData.total_files,
+                    chunksCount: filesData.files.reduce((sum, f) => sum + (f.chunks_count || 0), 0)
+                };
+
+                // Update UI
+                document.getElementById('vectorDbId').textContent = currentPipeline.vectorDbId;
+                document.getElementById('filesCount').textContent = currentPipeline.filesCount;
+                document.getElementById('chunksCount').textContent = currentPipeline.chunksCount;
+                document.getElementById('pipelineInfo').style.display = 'block';
+                document.getElementById('pipelineStatus').textContent = 'Готов';
+                document.getElementById('pipelineStatus').className = 'status-badge status-ready';
+
+            } catch (error) {
+                console.error('Error loading pipeline info:', error);
+                document.getElementById('pipelineStatus').textContent = 'Ошибка';
+                document.getElementById('pipelineStatus').className = 'status-badge status-error';
+            }
+        }
+
+        function updateModelOptions() {
+            const provider = document.getElementById('llmProvider').value;
+            const modelSelect = document.getElementById('llmModel');
+            const customUrlDiv = document.getElementById('customApiUrl');
+
+            const options = MODEL_OPTIONS[provider] || MODEL_OPTIONS.openai;
+            modelSelect.innerHTML = options.map(opt =>
+                `<option value="${opt.value}">${opt.label}</option>`
+            ).join('');
+
+            customUrlDiv.style.display = provider === 'custom' ? 'block' : 'none';
+        }
+
+        async function askQuestion() {
+            const query = document.getElementById('queryInput').value.trim();
+
+            if (!query) {
+                alert('Пожалуйста, введите вопрос');
+                return;
+            }
+
+            if (!currentPipeline) {
+                alert('Пожалуйста, выберите пайплайн');
+                return;
+            }
+
+            const button = document.getElementById('askButton');
+            const responseArea = document.getElementById('responseArea');
+
+            button.disabled = true;
+            button.textContent = 'Обработка...';
+
+            // Show loading state
+            responseArea.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div class="loading"></div>
+                    <p style="margin-top: 20px; color: #666;">Поиск в базе знаний и генерация ответа...</p>
+                </div>
+            `;
+
+            try {
+                const provider = document.getElementById('llmProvider').value;
+                const model = document.getElementById('llmModel').value;
+                const topK = parseInt(document.getElementById('topK').value);
+                const temperature = parseFloat(document.getElementById('temperature').value);
+                const customUrl = document.getElementById('customUrl').value;
+
+                // Call RAG endpoint
+                const response = await fetch(`${API_URL}/api/rag/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pipeline_id: currentPipeline.id,
+                        query: query,
+                        llm_provider: provider,
+                        llm_model: model,
+                        top_k: topK,
+                        temperature: temperature,
+                        custom_api_url: customUrl || null
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Ошибка при выполнении запроса');
+                }
+
+                const data = await response.json();
+
+                displayResponse(data, query);
+
+            } catch (error) {
+                console.error('Error:', error);
+                responseArea.innerHTML = `
+                    <div style="padding: 20px; color: #721c24; background: #f8d7da; border-radius: 8px;">
+                        <strong>❌ Ошибка:</strong> ${error.message}
+                    </div>
+                `;
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Задать вопрос';
+            }
+        }
+
+        function displayResponse(data, query) {
+            const responseArea = document.getElementById('responseArea');
+
+            const timestamp = new Date().toLocaleTimeString('ru-RU');
+
+            let html = `
+                <div class="response-header">
+                    <strong style="font-size: 1.1em;">💬 Ответ</strong>
+                    <span style="color: #999; font-size: 0.9em;">${timestamp}</span>
+                </div>
+                
+                <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                    <strong>❓ Вопрос:</strong> ${escapeHtml(query)}
+                </div>
+                
+                <div class="response-content">
+                    ${formatResponse(data.answer)}
+                </div>
+            `;
+
+            // Add sources if available
+            if (data.sources && data.sources.length > 0) {
+                html += `
+                    <div class="sources">
+                        <strong style="font-size: 1.05em;">📚 Источники (${data.sources.length}):</strong>
+                        ${data.sources.map((src, idx) => `
+                            <div class="source-item">
+                                <strong>Источник ${idx + 1}</strong><br>
+                                ${escapeHtml(src.content.substring(0, 200))}...
+                                ${src.metadata ? `<br><small style="color: #999;">${JSON.stringify(src.metadata)}</small>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Add metadata
+            if (data.metadata) {
+                html += `
+                    <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; font-size: 0.9em;">
+                        <strong>ℹ️ Метаданные:</strong><br>
+                        <strong>Модель:</strong> ${data.metadata.llm_model || 'N/A'}<br>
+                        <strong>Время обработки:</strong> ${data.metadata.processing_time || 'N/A'}<br>
+                        <strong>Найдено документов:</strong> ${data.metadata.retrieved_docs || 'N/A'}
+                    </div>
+                `;
+            }
+
+            responseArea.innerHTML = html;
+        }
+
+        function formatResponse(text) {
+            // Simple markdown-like formatting
+            return escapeHtml(text)
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                .replace(/^(.+)$/, '<p>$1</p>');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Handle Enter key in textarea (Shift+Enter for new line)
+        document.getElementById('queryInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                askQuestion();
+            }
+        });
+    </script>
+</body>
+
+</html>

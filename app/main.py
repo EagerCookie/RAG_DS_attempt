@@ -4,6 +4,11 @@ from typing import Optional, Dict, Any, List
 import hashlib
 import uuid
 from datetime import datetime
+import os
+
+# ВАЖНО: Загрузка переменных окружения из .env
+from dotenv import load_dotenv
+load_dotenv()
 
 # Import models
 from app.models.configs import (
@@ -546,6 +551,294 @@ def process_document_task(
             tasks_cache[task_id].status = "failed"
             tasks_cache[task_id].error = error_msg
             tasks_cache[task_id].message = "Processing failed"
+
+# ==========================================
+# RAG INFERENCE ENDPOINTS
+# Добавьте этот код в app/main.py
+# ==========================================
+
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+import time
+
+# Pydantic модели для RAG
+class RAGQueryRequest(BaseModel):
+    pipeline_id: str
+    query: str
+    llm_provider: str = "openai"
+    llm_model: str = "gpt-4o"
+    top_k: int = 5
+    temperature: float = 0.0
+    custom_api_url: Optional[str] = None
+
+
+class RAGSource(BaseModel):
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class RAGQueryResponse(BaseModel):
+    answer: str
+    sources: List[RAGSource]
+    metadata: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/rag/query", response_model=RAGQueryResponse)
+async def rag_query(request: RAGQueryRequest):
+    """
+    Выполняет RAG запрос к базе знаний конкретного пайплайна
+    """
+    start_time = time.time()
+    
+    try:
+        # 1. Загрузить конфигурацию пайплайна
+        pipeline_data = db_manager.get_pipeline(request.pipeline_id)
+        if not pipeline_data:
+            raise HTTPException(status_code=404, detail="Pipeline not found")
+        
+        config = PipelineConfig.model_validate_json(pipeline_data['config'])
+        vector_db_identifier = pipeline_data['vector_db_identifier']
+        
+        # 2. Подключиться к векторной базе
+        from langchain_chroma import Chroma
+        from langchain_huggingface import HuggingFaceEmbeddings
+        
+        # Использовать те же эмбеддинги, что и в пайплайне
+        embedding_config = config.embedding
+        embeddings = HuggingFaceEmbeddings(
+            model_name=embedding_config.model_name,
+            model_kwargs={'device': embedding_config.device},
+            encode_kwargs={'normalize_embeddings': embedding_config.normalize_embeddings},
+            cache_folder=embedding_config.cache_folder
+        )
+        
+        # Подключиться к правильной коллекции
+        db_config = config.database
+        if isinstance(db_config, ChromaDBConfig):
+            # Использовать полное имя коллекции с суффиксом pipeline_id
+            collection_name = f"{db_config.collection_name}_{request.pipeline_id[:8]}"
+            persist_directory = f"{db_config.persist_directory}/{request.pipeline_id[:8]}"
+            
+            vector_store = Chroma(
+                collection_name=collection_name,
+                embedding_function=embeddings,
+                persist_directory=persist_directory,
+            )
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Database type {db_config.type} not supported for RAG yet"
+            )
+        
+        # 3. Поиск релевантных документов
+        retrieved_docs = vector_store.similarity_search(
+            request.query, 
+            k=request.top_k
+        )
+        
+        if not retrieved_docs:
+            return RAGQueryResponse(
+                answer="К сожалению, в базе знаний не найдено релевантной информации для ответа на ваш вопрос.",
+                sources=[],
+                metadata={
+                    "retrieved_docs": 0,
+                    "processing_time": f"{time.time() - start_time:.2f}s",
+                    "llm_model": request.llm_model
+                }
+            )
+        
+        # 4. Создать контекст для LLM
+        context = "\n\n".join([
+            f"Документ {i+1}:\n{doc.page_content}" 
+            for i, doc in enumerate(retrieved_docs)
+        ])
+        
+        # 5. Вызвать LLM
+        llm_answer = await call_llm(
+            provider=request.llm_provider,
+            model=request.llm_model,
+            query=request.query,
+            context=context,
+            temperature=request.temperature,
+            custom_api_url=request.custom_api_url
+        )
+        
+        # 6. Подготовить ответ
+        sources = [
+            RAGSource(
+                content=doc.page_content,
+                metadata=doc.metadata
+            )
+            for doc in retrieved_docs
+        ]
+        
+        processing_time = time.time() - start_time
+        
+        return RAGQueryResponse(
+            answer=llm_answer,
+            sources=sources,
+            metadata={
+                "retrieved_docs": len(retrieved_docs),
+                "processing_time": f"{processing_time:.2f}s",
+                "llm_model": request.llm_model,
+                "llm_provider": request.llm_provider
+            }
+        )
+        
+    except Exception as e:
+        import traceback
+        print(f"RAG Query Error: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def call_llm(
+    provider: str,
+    model: str,
+    query: str,
+    context: str,
+    temperature: float,
+    custom_api_url: Optional[str] = None
+) -> str:
+    """
+    Вызывает LLM с контекстом из RAG
+    """
+    import os
+    
+    system_message = (
+        "Ты — helpful AI assistant с доступом к базе знаний. "
+        "Отвечай на вопросы пользователя, используя только информацию из предоставленного контекста. "
+        "Если в контексте нет ответа, честно скажи об этом."
+    )
+    
+    user_message = f"""Контекст из базы знаний:
+
+{context}
+
+---
+
+Вопрос пользователя: {query}
+
+Пожалуйста, ответь на вопрос, используя информацию из контекста выше."""
+    
+    try:
+        if provider == "openai":
+            from langchain_openai import ChatOpenAI
+            
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise Exception("OPENAI_API_KEY not found in environment variables")
+            
+            llm = ChatOpenAI(
+                model=model,
+                temperature=temperature,
+                api_key=api_key
+            )
+            
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            
+            response = llm.invoke(messages)
+            return response.content
+        
+        elif provider == "anthropic":
+            from langchain_anthropic import ChatAnthropic
+            
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise Exception("ANTHROPIC_API_KEY not found in environment variables")
+            
+            llm = ChatAnthropic(
+                model=model,
+                temperature=temperature,
+                api_key=api_key
+            )
+            
+            messages = [
+                {"role": "user", "content": f"{system_message}\n\n{user_message}"}
+            ]
+            
+            response = llm.invoke(messages)
+            return response.content
+        
+        elif provider == "deepseek":
+            # Используйте OpenAI-совместимый API
+            from langchain_openai import ChatOpenAI
+            
+            api_key = os.getenv("DEEPSEEK_API_KEY")
+            if not api_key:
+                raise Exception("DEEPSEEK_API_KEY not found in environment variables")
+            
+            llm = ChatOpenAI(
+                base_url="https://api.deepseek.com/v1",
+                api_key=api_key,
+                model=model,
+                temperature=temperature
+            )
+            
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            
+            response = llm.invoke(messages)
+            return response.content
+        
+        elif provider == "custom" and custom_api_url:
+            from langchain_openai import ChatOpenAI
+            
+            llm = ChatOpenAI(
+                base_url=custom_api_url,
+                api_key="dummy",  # Для локальных моделей
+                model=model,
+                temperature=temperature
+            )
+            
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]
+            
+            response = llm.invoke(messages)
+            return response.content
+        
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+            
+    except Exception as e:
+        raise Exception(f"LLM call failed: {str(e)}")
+
+
+# Дополнительный эндпоинт для получения статистики по пайплайну
+@app.get("/api/pipelines/{pipeline_id}/rag-info")
+async def get_pipeline_rag_info(pipeline_id: str):
+    """
+    Получить информацию о пайплайне для RAG инференса
+    """
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    config = PipelineConfig.model_validate_json(pipeline_data['config'])
+    
+    # Получить информацию о файлах
+    files = db_manager.get_files_by_pipeline(pipeline_id, limit=1000)
+    
+    total_chunks = sum(f['chunks_count'] for f in files if f['chunks_count'])
+    
+    return {
+        "pipeline_id": pipeline_id,
+        "name": pipeline_data['name'],
+        "vector_db_identifier": pipeline_data['vector_db_identifier'],
+        "embedding_model": config.embedding.model_name,
+        "embedding_dimension": None,  # Можно добавить при необходимости
+        "total_files": len(files),
+        "total_chunks": total_chunks,
+        "database_type": config.database.type,
+        "files": files[:10]  # Первые 10 для preview
+    }
 
 if __name__ == "__main__":
     import uvicorn
