@@ -315,7 +315,13 @@
 
                     <div id="customApiUrl" style="display: none; margin-top: 15px;">
                         <label>API URL</label>
-                        <input type="text" id="customUrl" placeholder="http://localhost:8080/v1">
+                        <input type="text" id="customUrl" placeholder="http://192.168.1.155:1234/v1">
+
+                        <label style="margin-top: 15px;">Идентификатор модели</label>
+                        <input type="text" id="customModelId" placeholder="qwen/qwen3-1.7b">
+                        <div style="font-size: 0.85em; color: #666; margin-top: 5px;">
+                            💡 Для LM Studio укажите точный ID модели (например: qwen/qwen3-1.7b)
+                        </div>
                     </div>
                 </div>
 
@@ -500,10 +506,16 @@
 
             try {
                 const provider = document.getElementById('llmProvider').value;
-                const model = document.getElementById('llmModel').value;
+                let model = document.getElementById('llmModel').value;
                 const topK = parseInt(document.getElementById('topK').value);
                 const temperature = parseFloat(document.getElementById('temperature').value);
                 const customUrl = document.getElementById('customUrl').value;
+                const customModelId = document.getElementById('customModelId').value;
+
+                // Для custom провайдера используем customModelId если он указан
+                if (provider === 'custom' && customModelId) {
+                    model = customModelId;
+                }
 
                 // Call RAG endpoint
                 const response = await fetch(`${API_URL}/api/rag/query`, {
