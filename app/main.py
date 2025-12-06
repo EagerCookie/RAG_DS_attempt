@@ -6,6 +6,13 @@ import uuid
 from datetime import datetime
 import os
 
+# ==========================================
+# PROCESSING VARIANTS API
+# ==========================================
+
+from pydantic import BaseModel
+from typing import Optional
+
 # ВАЖНО: Загрузка переменных окружения из .env
 from dotenv import load_dotenv
 load_dotenv()
@@ -52,6 +59,40 @@ db_manager = DatabaseManager()
 # In-memory cache for quick access (synced with DB)
 pipelines_cache: Dict[str, PipelineConfig] = {}
 tasks_cache: Dict[str, ProcessingStatus] = {}
+
+
+# ==========================================
+# MODELS
+# ==========================================
+
+class ProcessingVariantConfig(BaseModel):
+    """Конфигурация варианта обработки"""
+    name: str = "Default Variant"
+    loader: LoaderConfig
+    splitter: SplitterConfig
+    description: Optional[str] = None
+
+
+class CreateVariantRequest(BaseModel):
+    """Запрос на создание варианта обработки"""
+    pipeline_id: str
+    variant_config: ProcessingVariantConfig
+
+
+class ProcessWithVariantRequest(BaseModel):
+    """Обработка файла с конкретным вариантом"""
+    variant_id: str
+
+
+class ProcessingVariantResponse(BaseModel):
+    """Ответ с информацией о варианте"""
+    variant_id: str
+    pipeline_id: str
+    name: str
+    config: ProcessingVariantConfig
+    created_at: str
+    files_processed: int = 0
+
 
 # ==========================================
 # REGISTRY & STORAGE
@@ -692,6 +733,176 @@ async def rag_query(request: RAGQueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/pipelines/{pipeline_id}/variants", response_model=ProcessingVariantResponse)
+async def create_processing_variant(pipeline_id: str, variant_config: ProcessingVariantConfig):
+    """
+    Создать новый вариант обработки для существующего пайплайна
+    
+    Позволяет использовать разные loader/splitter с той же векторной БД
+    """
+    # Проверить, что пайплайн существует
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    # Проверить, что эмбеддинги совпадают
+    base_config = PipelineConfig.model_validate_json(pipeline_data['config'])
+    
+    # Создать ID для варианта
+    variant_id = str(uuid.uuid4())
+    
+    # Сохранить вариант
+    db_manager.create_processing_variant(
+        variant_id=variant_id,
+        pipeline_id=pipeline_id,
+        name=variant_config.name,
+        config=variant_config.model_dump_json(),
+        description=variant_config.description
+    )
+    
+    return ProcessingVariantResponse(
+        variant_id=variant_id,
+        pipeline_id=pipeline_id,
+        name=variant_config.name,
+        config=variant_config,
+        created_at=datetime.now().isoformat(),
+        files_processed=0
+    )
+
+
+@app.get("/api/pipelines/{pipeline_id}/variants")
+async def list_processing_variants(pipeline_id: str):
+    """
+    Получить все варианты обработки для пайплайна
+    """
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    variants = db_manager.list_variants_for_pipeline(pipeline_id)
+    
+    return {
+        "pipeline_id": pipeline_id,
+        "pipeline_name": pipeline_data['name'],
+        "variants": variants,
+        "total_variants": len(variants)
+    }
+
+
+@app.get("/api/variants/{variant_id}")
+async def get_variant_details(variant_id: str):
+    """
+    Получить детали конкретного варианта
+    """
+    variant = db_manager.get_processing_variant(variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    
+    config = ProcessingVariantConfig.model_validate_json(variant['config'])
+    
+    # Получить статистику по файлам
+    files = db_manager.get_files_by_variant(variant_id)
+    
+    return {
+        "variant_id": variant_id,
+        "pipeline_id": variant['pipeline_id'],
+        "name": variant['name'],
+        "description": variant['description'],
+        "config": config,
+        "created_at": variant['created_at'],
+        "files_processed": len(files),
+        "files": files[:10]  # Первые 10
+    }
+
+
+@app.post("/api/variants/{variant_id}/process")
+async def process_with_variant(
+    variant_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...)
+):
+    """
+    Обработать файл используя конкретный вариант обработки
+    
+    Использует loader и splitter из варианта, но сохраняет в БД пайплайна
+    """
+    # Загрузить вариант
+    variant = db_manager.get_processing_variant(variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    
+    pipeline_id = variant['pipeline_id']
+    
+    # Загрузить базовый пайплайн (для эмбеддингов и БД)
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    # Прочитать файл
+    content = await file.read()
+    file_hash = hashlib.md5(content).hexdigest()
+    
+    # Проверка дубликатов (в рамках варианта + пайплайна)
+    existing = db_manager.file_exists_in_pipeline(file_hash, pipeline_id)
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"File '{existing[0]}' already processed in this pipeline"
+        )
+    
+    # Создать задачу
+    task_id = str(uuid.uuid4())
+    db_manager.create_task(
+        task_id=task_id,
+        pipeline_id=pipeline_id,
+        filename=file.filename,
+        file_hash=file_hash,
+        status="pending"
+    )
+    
+    tasks_cache[task_id] = ProcessingStatus(
+        task_id=task_id,
+        status="pending",
+        message="Task queued"
+    )
+    
+    # Запустить обработку с вариантом
+    background_tasks.add_task(
+        process_document_with_variant_task,
+        task_id,
+        pipeline_id,
+        variant_id,
+        file.filename,
+        content,
+        file_hash,
+        len(content)
+    )
+    
+    return {
+        "task_id": task_id,
+        "variant_id": variant_id,
+        "pipeline_id": pipeline_id,
+        "status": "pending",
+        "message": f"Processing with variant '{variant['name']}'"
+    }
+
+
+@app.delete("/api/variants/{variant_id}")
+async def delete_variant(variant_id: str):
+    """
+    Удалить вариант обработки (файлы остаются в БД)
+    """
+    variant = db_manager.get_processing_variant(variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    
+    db_manager.delete_processing_variant(variant_id)
+    
+    return {
+        "message": "Variant deleted successfully",
+        "note": "Files processed with this variant remain in the database"
+    }
+
 async def call_llm(
     provider: str,
     model: str,
@@ -839,6 +1050,122 @@ async def get_pipeline_rag_info(pipeline_id: str):
         "database_type": config.database.type,
         "files": files[:10]  # Первые 10 для preview
     }
+
+
+# ==========================================
+# BACKGROUND TASK FOR VARIANT PROCESSING
+# ==========================================
+
+def process_document_with_variant_task(
+    task_id: str,
+    pipeline_id: str,
+    variant_id: str,
+    filename: str,
+    content: bytes,
+    file_hash: str,
+    file_size: int
+):
+    """
+    Обработка документа с использованием варианта
+    
+    Использует loader/splitter из варианта, но embedding/database из пайплайна
+    """
+    import asyncio
+    
+    def update_progress(progress: float, message: str):
+        db_manager.update_task(task_id=task_id, progress=progress, message=message)
+        if task_id in tasks_cache:
+            tasks_cache[task_id].progress = progress
+            tasks_cache[task_id].message = message
+    
+    try:
+        db_manager.update_task(task_id=task_id, status="processing")
+        if task_id in tasks_cache:
+            tasks_cache[task_id].status = "processing"
+        
+        # Загрузить базовый пайплайн (для embedding/database)
+        pipeline_data = db_manager.get_pipeline(pipeline_id)
+        base_config = PipelineConfig.model_validate_json(pipeline_data['config'])
+        vector_db_identifier = pipeline_data['vector_db_identifier']
+        
+        # Загрузить вариант (для loader/splitter)
+        variant = db_manager.get_processing_variant(variant_id)
+        variant_config = ProcessingVariantConfig.model_validate_json(variant['config'])
+        
+        # Создать гибридную конфигурацию
+        hybrid_config = PipelineConfig(
+            name=f"{base_config.name} - {variant_config.name}",
+            loader=variant_config.loader,      # Из варианта!
+            splitter=variant_config.splitter,  # Из варианта!
+            embedding=base_config.embedding,   # Из пайплайна!
+            database=base_config.database      # Из пайплайна!
+        )
+        
+        # Создать процессор
+        processor = PipelineProcessor(hybrid_config, pipeline_id)
+        
+        # Обработать документ
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            results = loop.run_until_complete(processor.process(
+                content=content,
+                filename=filename,
+                progress_callback=update_progress
+            ))
+        finally:
+            loop.close()
+        
+        # Сохранить с указанием варианта
+        db_manager.add_file(
+            filename=filename,
+            file_hash=file_hash,
+            file_size=file_size,
+            pipeline_id=pipeline_id,
+            vector_db_identifier=vector_db_identifier,
+            chunks_count=results['chunks_created'],
+            metadata={
+                **results,
+                "variant_id": variant_id,
+                "variant_name": variant['name']
+            }
+        )
+        
+        # Обновить таблицу files с variant_id
+        with db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'UPDATE files SET variant_id = ? WHERE file_hash = ? AND pipeline_id = ?',
+                (variant_id, file_hash, pipeline_id)
+            )
+        
+        db_manager.update_task(
+            task_id=task_id,
+            status="completed",
+            progress=1.0,
+            message=f"Successfully processed with variant '{variant['name']}'"
+        )
+        
+        if task_id in tasks_cache:
+            tasks_cache[task_id].status = "completed"
+            tasks_cache[task_id].progress = 1.0
+        
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Error processing with variant {variant_id}: {error_msg}")
+        traceback.print_exc()
+        
+        db_manager.update_task(
+            task_id=task_id,
+            status="failed",
+            error=error_msg,
+            message="Processing failed"
+        )
+        
+        if task_id in tasks_cache:
+            tasks_cache[task_id].status = "failed"
+            tasks_cache[task_id].error = error_msg
 
 if __name__ == "__main__":
     import uvicorn

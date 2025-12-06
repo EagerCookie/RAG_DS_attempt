@@ -89,6 +89,26 @@ class DatabaseManager:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            # Новая таблица для вариантов обработки
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS processing_variants (
+                    id TEXT PRIMARY KEY,
+                    pipeline_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    config TEXT NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE CASCADE
+                )
+            ''')
+
+            # Добавить variant_id в таблицу files
+            try:
+                cursor.execute('''
+                ALTER TABLE files ADD COLUMN variant_id TEXT
+                ''')
+            except:
+                pass  # Колонка уже существует
             
             # Create indexes for better performance
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_files_hash ON files(file_hash)')
@@ -97,7 +117,65 @@ class DatabaseManager:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_pipelines_name ON pipelines(name)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_pipelines_vector_db ON pipelines(vector_db_identifier)')
-    
+            cursor.execute('''
+                CREATE INDEX IF NOT EXISTS idx_variants_pipeline 
+                ON processing_variants(pipeline_id)
+                ''')
+
+    # ==========================================
+    # PROCESSING VARIANTS
+    # ==========================================
+    def create_processing_variant(
+    self,
+    variant_id: str,
+    pipeline_id: str,
+    name: str,
+    config: str,
+    description: Optional[str] = None
+    ):
+        """Создать вариант обработки для пайплайна"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Проверяем, что пайплайн существует
+            cursor.execute('SELECT id FROM pipelines WHERE id = ?', (pipeline_id,))
+            if not cursor.fetchone():
+                raise ValueError(f"Pipeline {pipeline_id} not found")
+            
+            cursor.execute('''
+                INSERT INTO processing_variants (id, pipeline_id, name, config, description)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (variant_id, pipeline_id, name, config, description))
+
+
+    def get_processing_variant(self, variant_id: str) -> Optional[Dict]:
+        """Получить вариант обработки"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, pipeline_id, name, config, description, created_at
+                FROM processing_variants
+                WHERE id = ?
+            ''', (variant_id,))
+            result = cursor.fetchone()
+            return dict(result) if result else None
+
+
+    def list_variants_for_pipeline(self, pipeline_id: str) -> List[Dict]:
+        """Получить все варианты для пайплайна"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT v.id, v.name, v.description, v.created_at,
+                    COUNT(f.id) as files_processed
+                FROM processing_variants v
+                LEFT JOIN files f ON f.variant_id = v.id
+                WHERE v.pipeline_id = ?
+                GROUP BY v.id
+                ORDER BY v.created_at DESC
+            ''', (pipeline_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
     # ==========================================
     # PIPELINE OPERATIONS
     # ==========================================
@@ -521,3 +599,25 @@ class DatabaseManager:
             stats['pipelines'] = [dict(row) for row in cursor.fetchall()]
             
             return stats
+    
+    def get_files_by_variant(self, variant_id: str, limit: int = 100) -> List[Dict]:
+        """Получить файлы обработанные конкретным вариантом"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, filename, file_hash, file_size, 
+                    chunks_count, processed_at, metadata
+                FROM files
+                WHERE variant_id = ?
+                ORDER BY processed_at DESC
+                LIMIT ?
+            ''', (variant_id, limit))
+            return [dict(row) for row in cursor.fetchall()]
+
+
+    def delete_processing_variant(self, variant_id: str) -> bool:
+        """Удалить вариант обработки"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM processing_variants WHERE id = ?', (variant_id,))
+            return cursor.rowcount > 0
