@@ -281,15 +281,16 @@ class DatabaseManager:
         pipeline_id: str,
         vector_db_identifier: str,
         chunks_count: int,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
+        variant_id: Optional[str] = None
     ):
         """Add processed file record"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO files (filename, file_hash, file_size, pipeline_id, 
-                                   vector_db_identifier, chunks_count, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                                   vector_db_identifier, chunks_count, metadata, variant_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 filename,
                 file_hash,
@@ -297,8 +298,10 @@ class DatabaseManager:
                 pipeline_id,
                 vector_db_identifier,
                 chunks_count,
-                json.dumps(metadata) if metadata else None
+                json.dumps(metadata) if metadata else None,
+                variant_id
             ))
+
     
     def get_files_by_pipeline(self, pipeline_id: str, limit: int = 100) -> List[Dict]:
         """Get all files processed by specific pipeline"""
@@ -306,7 +309,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT id, filename, file_hash, file_size, pipeline_id, 
-                       vector_db_identifier, chunks_count, processed_at, metadata
+                       vector_db_identifier, chunks_count, processed_at, metadata, variant_id
                 FROM files
                 WHERE pipeline_id = ?
                 ORDER BY processed_at DESC
@@ -322,7 +325,7 @@ class DatabaseManager:
                 SELECT f.id, f.filename, f.file_hash, f.file_size, 
                        f.pipeline_id, p.name as pipeline_name,
                        f.vector_db_identifier, f.chunks_count, 
-                       f.processed_at, f.metadata
+                       f.processed_at, f.metadata, f.variant_id
                 FROM files f
                 JOIN pipelines p ON f.pipeline_id = p.id
                 WHERE f.vector_db_identifier = ?
@@ -339,7 +342,7 @@ class DatabaseManager:
                 SELECT f.id, f.filename, f.file_hash, f.file_size, 
                        f.pipeline_id, p.name as pipeline_name,
                        f.vector_db_identifier, f.chunks_count, 
-                       f.processed_at, f.metadata
+                       f.processed_at, f.metadata, f.variant_id
                 FROM files f
                 JOIN pipelines p ON f.pipeline_id = p.id
                 ORDER BY f.processed_at DESC

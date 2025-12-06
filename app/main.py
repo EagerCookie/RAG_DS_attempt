@@ -6,13 +6,6 @@ import uuid
 from datetime import datetime
 import os
 
-# ==========================================
-# PROCESSING VARIANTS API
-# ==========================================
-
-from pydantic import BaseModel
-from typing import Optional
-
 # ВАЖНО: Загрузка переменных окружения из .env
 from dotenv import load_dotenv
 load_dotenv()
@@ -20,6 +13,7 @@ load_dotenv()
 # Import models
 from app.models.configs import (
     PipelineConfig,
+    ProcessingVariantConfig,
     LoaderConfig,
     PDFLoaderConfig,
     TextLoaderConfig,
@@ -35,7 +29,8 @@ from app.models.configs import (
 from app.models.schemas import (
     ComponentInfo,
     PipelineResponse,
-    ProcessingStatus
+    ProcessingStatus,
+    ProcessingVariantResponse
 )
 
 app = FastAPI(title="RAG Pipeline API", version="1.0.0")
@@ -59,39 +54,6 @@ db_manager = DatabaseManager()
 # In-memory cache for quick access (synced with DB)
 pipelines_cache: Dict[str, PipelineConfig] = {}
 tasks_cache: Dict[str, ProcessingStatus] = {}
-
-
-# ==========================================
-# MODELS
-# ==========================================
-
-class ProcessingVariantConfig(BaseModel):
-    """Конфигурация варианта обработки"""
-    name: str = "Default Variant"
-    loader: LoaderConfig
-    splitter: SplitterConfig
-    description: Optional[str] = None
-
-
-class CreateVariantRequest(BaseModel):
-    """Запрос на создание варианта обработки"""
-    pipeline_id: str
-    variant_config: ProcessingVariantConfig
-
-
-class ProcessWithVariantRequest(BaseModel):
-    """Обработка файла с конкретным вариантом"""
-    variant_id: str
-
-
-class ProcessingVariantResponse(BaseModel):
-    """Ответ с информацией о варианте"""
-    variant_id: str
-    pipeline_id: str
-    name: str
-    config: ProcessingVariantConfig
-    created_at: str
-    files_processed: int = 0
 
 
 # ==========================================
@@ -255,11 +217,13 @@ async def list_databases():
 # Pipelines
 @app.post("/api/pipelines", response_model=PipelineResponse)
 async def create_pipeline(config: PipelineConfig):
-    """Create a new pipeline configuration"""
-    pipeline_id = str(uuid.uuid4())
+    """
+    Create a new pipeline configuration
     
-    # Validate configuration
-    warnings = PipelineValidator.validate_compatibility(config)
+    Pipeline теперь содержит только embedding + database (база знаний).
+    Loader и splitter опциональны через default_variant.
+    """
+    pipeline_id = str(uuid.uuid4())
     
     # Generate vector DB identifier for this pipeline
     from app.services.pipeline_service import DatabaseFactory
@@ -268,7 +232,7 @@ async def create_pipeline(config: PipelineConfig):
         pipeline_id
     )
     
-    # Save to database
+    # Save pipeline to database (without loader/splitter)
     db_manager.save_pipeline(
         pipeline_id=pipeline_id,
         name=config.name,
@@ -279,20 +243,48 @@ async def create_pipeline(config: PipelineConfig):
     # Cache
     pipelines_cache[pipeline_id] = config
     
+    # Create default variant if provided
+    default_variant_id = None
+    if config.default_variant:
+        default_variant_id = str(uuid.uuid4())
+        db_manager.create_processing_variant(
+            variant_id=default_variant_id,
+            pipeline_id=pipeline_id,
+            name=config.default_variant.name,
+            config=config.default_variant.model_dump_json(),
+            description=config.default_variant.description
+        )
+    
+    # Get all variants for response
+    variants = db_manager.list_variants_for_pipeline(pipeline_id)
+    variant_responses = [
+        ProcessingVariantResponse(
+            variant_id=v['id'],
+            pipeline_id=pipeline_id,
+            name=v['name'],
+            description=v.get('description'),
+            config=ProcessingVariantConfig.model_validate_json(
+                db_manager.get_processing_variant(v['id'])['config']
+            ),
+            created_at=v['created_at'],
+            files_processed=v.get('files_processed', 0)
+        )
+        for v in variants
+    ]
+    
     response = PipelineResponse(
         pipeline_id=pipeline_id,
         config=config,
-        created_at=datetime.now()
+        created_at=datetime.now(),
+        variants=variant_responses if variant_responses else None,
+        default_variant_id=default_variant_id
     )
-    
-    if warnings:
-        response.warnings = warnings
     
     return response
 
 @app.get("/api/pipelines/{pipeline_id}", response_model=PipelineResponse)
 async def get_pipeline(pipeline_id: str):
-    """Get pipeline configuration"""
+    """Get pipeline configuration with all its variants"""
     # Try cache first
     if pipeline_id in pipelines_cache:
         config = pipelines_cache[pipeline_id]
@@ -305,10 +297,28 @@ async def get_pipeline(pipeline_id: str):
         config = PipelineConfig.model_validate_json(pipeline_data['config'])
         pipelines_cache[pipeline_id] = config
     
+    # Get all variants
+    variants = db_manager.list_variants_for_pipeline(pipeline_id)
+    variant_responses = [
+        ProcessingVariantResponse(
+            variant_id=v['id'],
+            pipeline_id=pipeline_id,
+            name=v['name'],
+            description=v.get('description'),
+            config=ProcessingVariantConfig.model_validate_json(
+                db_manager.get_processing_variant(v['id'])['config']
+            ),
+            created_at=v['created_at'],
+            files_processed=v.get('files_processed', 0)
+        )
+        for v in variants
+    ]
+    
     return PipelineResponse(
         pipeline_id=pipeline_id,
         config=config,
-        created_at=datetime.now()
+        created_at=datetime.now(),
+        variants=variant_responses if variant_responses else None
     )
 
 @app.get("/api/pipelines")
@@ -321,13 +331,38 @@ async def list_pipelines():
 async def process_file(
     pipeline_id: str,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    variant_id: Optional[str] = None  # Опциональный variant_id
 ):
-    """Process a file using the specified pipeline"""
+    """
+    Process a file using the specified pipeline and variant
+    
+    Args:
+        pipeline_id: ID пайплайна (база знаний)
+        variant_id: ID варианта обработки (loader+splitter). Если не указан, используется первый доступный вариант
+        file: Файл для обработки
+    """
     # Load pipeline config
     pipeline_data = db_manager.get_pipeline(pipeline_id)
     if not pipeline_data:
         raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    # Если variant_id не указан, берем первый доступный вариант
+    if not variant_id:
+        variants = db_manager.list_variants_for_pipeline(pipeline_id)
+        if not variants:
+            raise HTTPException(
+                status_code=400,
+                detail="No processing variants found for this pipeline. Create a variant first."
+            )
+        variant_id = variants[0]['id']
+    
+    # Проверяем что вариант существует и принадлежит этому пайплайну
+    variant = db_manager.get_processing_variant(variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    if variant['pipeline_id'] != pipeline_id:
+        raise HTTPException(status_code=400, detail="Variant does not belong to this pipeline")
     
     # Read file content
     content = await file.read()
@@ -354,14 +389,16 @@ async def process_file(
     tasks_cache[task_id] = ProcessingStatus(
         task_id=task_id,
         status="pending",
-        message="Task queued"
+        message="Task queued",
+        variant_id=variant_id
     )
     
     # Schedule background processing
     background_tasks.add_task(
-        process_document_task,
+        process_document_with_variant_task,
         task_id,
         pipeline_id,
+        variant_id,
         file.filename,
         content,
         file_hash,
@@ -370,8 +407,11 @@ async def process_file(
     
     return {
         "task_id": task_id,
+        "pipeline_id": pipeline_id,
+        "variant_id": variant_id,
+        "variant_name": variant['name'],
         "status": "pending",
-        "message": "Processing started"
+        "message": f"Processing with variant '{variant['name']}'"
     }
 
 @app.get("/api/tasks/{task_id}", response_model=ProcessingStatus)
@@ -397,7 +437,99 @@ async def get_task_status(task_id: str):
     
     return status
 
+
+# ==========================================
+# PROCESSING VARIANTS ENDPOINTS
+# ==========================================
+
+@app.post("/api/pipelines/{pipeline_id}/variants", response_model=ProcessingVariantResponse)
+async def create_variant(pipeline_id: str, variant_config: ProcessingVariantConfig):
+    """
+    Create a new processing variant for a pipeline
+    
+    Allows using different loader/splitter combinations with the same vector database
+    """
+    # Check pipeline exists
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    # Create variant
+    variant_id = str(uuid.uuid4())
+    db_manager.create_processing_variant(
+        variant_id=variant_id,
+        pipeline_id=pipeline_id,
+        name=variant_config.name,
+        config=variant_config.model_dump_json(),
+        description=variant_config.description
+    )
+    
+    return ProcessingVariantResponse(
+        variant_id=variant_id,
+        pipeline_id=pipeline_id,
+        name=variant_config.name,
+        description=variant_config.description,
+        config=variant_config,
+        created_at=datetime.now().isoformat(),
+        files_processed=0
+    )
+
+
+@app.get("/api/pipelines/{pipeline_id}/variants")
+async def list_variants(pipeline_id: str):
+    """Get all processing variants for a pipeline"""
+    pipeline_data = db_manager.get_pipeline(pipeline_id)
+    if not pipeline_data:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    
+    variants = db_manager.list_variants_for_pipeline(pipeline_id)
+    
+    return {
+        "pipeline_id": pipeline_id,
+        "pipeline_name": pipeline_data['name'],
+        "variants": variants,
+        "total_variants": len(variants)
+    }
+
+
+@app.get("/api/variants/{variant_id}", response_model=ProcessingVariantResponse)
+async def get_variant(variant_id: str):
+    """Get details of a specific variant"""
+    variant = db_manager.get_processing_variant(variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    
+    config = ProcessingVariantConfig.model_validate_json(variant['config'])
+    files = db_manager.get_files_by_variant(variant_id)
+    
+    return ProcessingVariantResponse(
+        variant_id=variant_id,
+        pipeline_id=variant['pipeline_id'],
+        name=variant['name'],
+        description=variant.get('description'),
+        config=config,
+        created_at=variant['created_at'],
+        files_processed=len(files)
+    )
+
+
+@app.delete("/api/variants/{variant_id}")
+async def delete_variant(variant_id: str):
+    """Delete a processing variant (files remain in the database)"""
+    variant = db_manager.get_processing_variant(variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    
+    db_manager.delete_processing_variant(variant_id)
+    
+    return {
+        "message": "Variant deleted successfully",
+        "note": "Files processed with this variant remain in the database"
+    }
+
+
 # Additional endpoints
+
 @app.get("/api/files")
 async def list_processed_files(limit: int = 100):
     """List all processed files across all pipelines"""
@@ -501,15 +633,23 @@ async def validate_pipeline(pipeline_id: str):
 # BACKGROUND PROCESSING
 # ==========================================
 
-def process_document_task(
+def process_document_with_variant_task(
     task_id: str,
     pipeline_id: str,
+    variant_id: str,
     filename: str,
     content: bytes,
     file_hash: str,
     file_size: int
 ):
-    """Background task for document processing (synchronous)"""
+    """
+    Background task for document processing with variant support
+    
+    Загружает:
+    - Pipeline config (embedding + database)
+    - Variant config (loader + splitter)
+    Объединяет их и обрабатывает документ
+    """
     import asyncio
     
     def update_progress(progress: float, message: str):
@@ -529,13 +669,38 @@ def process_document_task(
         if task_id in tasks_cache:
             tasks_cache[task_id].status = "processing"
         
-        # Load pipeline config
+        # Load pipeline config (embedding + database)
         pipeline_data = db_manager.get_pipeline(pipeline_id)
-        config = PipelineConfig.model_validate_json(pipeline_data['config'])
+        pipeline_config = PipelineConfig.model_validate_json(pipeline_data['config'])
         vector_db_identifier = pipeline_data['vector_db_identifier']
         
+        # Load variant config (loader + splitter)
+        variant_data = db_manager.get_processing_variant(variant_id)
+        variant_config = ProcessingVariantConfig.model_validate_json(variant_data['config'])
+        
+        # Create combined config for processing
+        # ВАЖНО: PipelineProcessor ожидает полный PipelineConfig с loader и splitter
+        # Создаем временный полный конфиг объединяя pipeline и variant
+        from pydantic import BaseModel
+        
+        class FullPipelineConfig(BaseModel):
+            """Временный полный конфиг для процессора"""
+            name: str
+            loader: LoaderConfig
+            splitter: SplitterConfig
+            embedding: EmbeddingConfig
+            database: DatabaseConfig
+        
+        full_config = FullPipelineConfig(
+            name=pipeline_config.name,
+            loader=variant_config.loader,
+            splitter=variant_config.splitter,
+            embedding=pipeline_config.embedding,
+            database=pipeline_config.database
+        )
+        
         # Create processor with pipeline_id
-        processor = PipelineProcessor(config, pipeline_id)
+        processor = PipelineProcessor(full_config, pipeline_id)
         
         # Process document (run async function in sync context)
         loop = asyncio.new_event_loop()
@@ -549,7 +714,7 @@ def process_document_task(
         finally:
             loop.close()
         
-        # Save file record with vector DB identifier
+        # Save file record with vector DB identifier AND variant_id
         db_manager.add_file(
             filename=filename,
             file_hash=file_hash,
@@ -557,7 +722,8 @@ def process_document_task(
             pipeline_id=pipeline_id,
             vector_db_identifier=vector_db_identifier,
             chunks_count=results['chunks_created'],
-            metadata=results
+            metadata=results,
+            variant_id=variant_id  # ВАЖНО: сохраняем variant_id
         )
         
         # Mark as completed
@@ -565,7 +731,7 @@ def process_document_task(
             task_id=task_id,
             status="completed",
             progress=1.0,
-            message=f"Successfully processed {filename}"
+            message=f"Successfully processed {filename} with variant '{variant_config.name}'"
         )
         
         if task_id in tasks_cache:
@@ -1092,8 +1258,19 @@ def process_document_with_variant_task(
         variant = db_manager.get_processing_variant(variant_id)
         variant_config = ProcessingVariantConfig.model_validate_json(variant['config'])
         
-        # Создать гибридную конфигурацию
-        hybrid_config = PipelineConfig(
+        # Создать временный полный конфиг для процессора
+        # PipelineProcessor ожидает config с loader и splitter
+        from pydantic import BaseModel
+        
+        class FullPipelineConfig(BaseModel):
+            """Временный полный конфиг для процессора"""
+            name: str
+            loader: LoaderConfig
+            splitter: SplitterConfig
+            embedding: EmbeddingConfig
+            database: DatabaseConfig
+        
+        full_config = FullPipelineConfig(
             name=f"{base_config.name} - {variant_config.name}",
             loader=variant_config.loader,      # Из варианта!
             splitter=variant_config.splitter,  # Из варианта!
@@ -1102,7 +1279,7 @@ def process_document_with_variant_task(
         )
         
         # Создать процессор
-        processor = PipelineProcessor(hybrid_config, pipeline_id)
+        processor = PipelineProcessor(full_config, pipeline_id)
         
         # Обработать документ
         loop = asyncio.new_event_loop()

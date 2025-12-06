@@ -95,12 +95,27 @@ DatabaseConfig = ChromaDBConfig | QdrantDBConfig
 
 
 # ==========================================
-# PIPELINE CONFIGURATION
+# VARIANT CONFIGURATION (Loader + Splitter)
+# ==========================================
+
+class ProcessingVariantConfig(BaseModel):
+    """Конфигурация варианта обработки - определяет как загружать и разбивать документы"""
+    name: str = Field(default="Default Variant", description="Variant name")
+    loader: LoaderConfig = Field(..., description="Loader configuration")
+    splitter: SplitterConfig = Field(..., description="Splitter configuration")
+    description: Optional[str] = Field(default=None, description="Variant description")
+
+
+# ==========================================
+# PIPELINE CONFIGURATION (Embedding + Database)
 # ==========================================
 
 class PipelineConfig(BaseModel):
+    """Конфигурация пайплайна - определяет базу знаний (embedding + database)"""
     name: str = Field(default="default_pipeline", description="Pipeline name")
-    loader: LoaderConfig = Field(..., description="Loader configuration")
-    splitter: SplitterConfig = Field(..., description="Splitter configuration")
     embedding: EmbeddingConfig = Field(..., description="Embedding configuration")
     database: DatabaseConfig = Field(..., description="Database configuration")
+    default_variant: Optional[ProcessingVariantConfig] = Field(
+        default=None, 
+        description="Default processing variant (optional, can be created separately)"
+    )
