@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RAG Pipeline Builder - New Architecture</title>
     <style>
+        /* Общие стили */
         * {
             margin: 0;
             padding: 0;
@@ -327,6 +328,7 @@
             margin-left: 10px;
         }
 
+        /* Новые стили для селектора режимов */
         .mode-selector {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -364,6 +366,7 @@
             font-size: 0.9em;
         }
 
+        /* Стили для списка пайплайнов */
         .pipeline-list {
             max-height: 300px;
             overflow-y: auto;
@@ -401,9 +404,10 @@
             color: #666;
         }
 
+        /* Стили для списка вариантов */
         .variant-list {
+            /* Убрал padding-left: 20px; чтобы было ровнее */
             margin-top: 10px;
-            padding-left: 20px;
         }
 
         .variant-item {
@@ -454,7 +458,6 @@
         </div>
 
         <div class="content">
-            <!-- Mode Selection -->
             <div class="section">
                 <h2>🎯 Режим работы</h2>
                 <div class="mode-selector">
@@ -469,15 +472,16 @@
                 </div>
             </div>
 
-            <!-- Existing Pipeline Selection (hidden by default) -->
             <div class="section" id="existingPipelineSection" style="display: none;">
                 <h2>📚 Выбор пайплайна и варианта</h2>
+
                 <div class="form-group">
                     <label>Доступные пайплайны</label>
                     <div id="pipelineList" class="pipeline-list">
                         <div class="empty-state">Загрузка...</div>
                     </div>
                 </div>
+
                 <div id="variantSelection" style="display: none; margin-top: 20px;">
                     <label>Варианты обработки для выбранного пайплайна</label>
                     <div id="variantList" class="variant-list"></div>
@@ -485,11 +489,50 @@
                         + Создать новый вариант
                     </button>
                 </div>
+
+                <div id="newVariantForm"
+                    style="display: none; margin-top: 20px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #ff6b6b;">
+                    <h3>Создание нового варианта</h3>
+                    <div class="form-group">
+                        <label>Название варианта</label>
+                        <input type="text" id="newVariantName" placeholder="Например: PDF Processor">
+                    </div>
+                    <div class="form-group">
+                        <label>Описание</label>
+                        <input type="text" id="newVariantDescription" placeholder="Опционально">
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <h3 style="color: #ff6b6b; margin-bottom: 15px;">Загрузчик документов</h3>
+                        <div class="form-group">
+                            <label>Тип загрузчика</label>
+                            <select id="loaderTypeExisting" onchange="loadLoaderParams('existing')">
+                                <option value="">Загрузка...</option>
+                            </select>
+                        </div>
+                        <div id="loaderParamsExisting" class="dynamic-params" style="display: none;">
+                            <h3>Параметры загрузчика</h3>
+                            <div id="loaderParamsContentExisting" class="param-grid"></div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <h3 style="color: #ff6b6b; margin-bottom: 15px;">Разделитель текста</h3>
+                        <div class="form-group">
+                            <label>Тип разделителя</label>
+                            <select id="splitterTypeExisting" onchange="loadSplitterParams('existing')">
+                                <option value="">Загрузка...</option>
+                            </select>
+                        </div>
+                        <div id="splitterParamsExisting" class="dynamic-params" style="display: none;">
+                            <h3>Параметры разделителя</h3>
+                            <div id="splitterParamsContentExisting" class="param-grid"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- New Pipeline Creation (shown by default) -->
             <div id="newPipelineSection">
-                <!-- Pipeline Name -->
                 <div class="section">
                     <h2>📝 Название пайплайна (базы знаний)</h2>
                     <div class="form-group">
@@ -498,7 +541,6 @@
                     </div>
                 </div>
 
-                <!-- Knowledge Base Section (Embedding + Database) -->
                 <div class="section knowledge-base-section">
                     <h2>🧠 База знаний <span class="kb-badge">Pipeline</span></h2>
                     <div class="info-box success">
@@ -506,7 +548,6 @@
                         Создается один раз и используется для разных типов файлов.
                     </div>
 
-                    <!-- Embedding -->
                     <div style="margin-top: 20px;">
                         <h3 style="color: #51cf66; margin-bottom: 15px;">Модель эмбеддингов</h3>
                         <div class="form-group">
@@ -521,7 +562,6 @@
                         </div>
                     </div>
 
-                    <!-- Database -->
                     <div style="margin-top: 20px;">
                         <h3 style="color: #51cf66; margin-bottom: 15px;">Векторная база данных</h3>
                         <div class="form-group">
@@ -537,7 +577,6 @@
                     </div>
                 </div>
 
-                <!-- Variant Section (Loader + Splitter) -->
                 <div class="section variant-section">
                     <h2>✂️ Вариант обработки <span class="variant-badge">Variant</span></h2>
                     <div class="info-box">
@@ -556,12 +595,11 @@
                         <input type="text" id="variantDescription" placeholder="Например: Для обработки PDF документов">
                     </div>
 
-                    <!-- Loader -->
                     <div style="margin-top: 20px;">
                         <h3 style="color: #ff6b6b; margin-bottom: 15px;">Загрузчик документов</h3>
                         <div class="form-group">
                             <label>Тип загрузчика</label>
-                            <select id="loaderType" onchange="loadLoaderParams()">
+                            <select id="loaderType" onchange="loadLoaderParams('new')">
                                 <option value="">Загрузка...</option>
                             </select>
                         </div>
@@ -571,525 +609,903 @@
                         </div>
                     </div>
 
-                    <!-- Splitter -->
                     <div style="margin-top: 20px;">
                         <h3 style="color: #ff6b6b; margin-bottom: 15px;">Разделитель текста</h3>
                         <div class="form-group">
                             <label>Тип разделителя</label>
-                            <select id="splitterType" onchange="loadSplitterParams()">
+                            <select id="splitterType" onchange="loadSplitterParams('new')">
                                 <option value="">Загрузка...</option>
                             </select>
                         </div>
                         <div id="splitterParams" class="dynamic-params" style="display: none;">
                             <h3>Параметры разделителя</h3>
                             <div id="splitterParamsContent" class="param-grid"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                            <script>
-                                const API_URL = 'http://localhost:8000';
+            <div class="section">
+                <h2>⬆️ Загрузка файла для обработки</h2>
+                <div class="form-group">
+                    <label for="fileInput">Выберите файл (PDF, TXT, DOCX и т.д.)</label>
+                    <input type="file" id="fileInput" accept=".pdf,.txt,.docx,.md,.csv">
+                </div>
+                <div id="fileInfo" class="file-info" style="display: none;"></div>
+            </div>
 
-                                // Store component schemas
-                                let componentSchemas = {
-                                    loaders: {},
-                                    splitters: {},
-                                    embeddings: {},
-                                    databases: {}
-                                };
+            <button id="processBtn" onclick="processPipeline()">Создать пайплайн и обработать файл</button>
 
-                                // Store current parameter values
-                                let currentParams = {
-                                    loader: {},
-                                    splitter: {},
-                                    embedding: {},
-                                    database: {}
-                                };
+            <div id="statusMessage" class="status-message status-info" style="display: none;"></div>
 
-                                // Load components on page load
-                                window.onload = async () => {
-                                    await loadLoaders();
-                                    await loadSplitters();
-                                    await loadEmbeddings();
-                                    await loadDatabases();
-                                };
+            <div id="progressContainer" class="progress-container">
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill">0%</div>
+                </div>
+                <p id="taskMessage"></p>
+            </div>
 
-                                // ==========================================
-                                // LOAD COMPONENT LISTS
-                                // ==========================================
+            <div id="resultsSection" class="section"
+                style="display: none; margin-top: 40px; border-left-color: #764ba2;">
+                <h2>🎉 Результаты обработки</h2>
+                <div id="taskInfo">
+                    <p><strong>Pipeline ID:</strong> <span id="pipelineIdDisplay">N/A</span></p>
+                    <p><strong>Variant ID:</strong> <span id="variantIdDisplay">N/A</span></p>
+                    <p><strong>Task ID:</strong> <span id="taskIdDisplay">N/A</span></p>
+                    <p><strong>Файл:</strong> <span id="fileNameDisplay">N/A</span></p>
+                </div>
+                <div id="stats" class="stats"></div>
+            </div>
+        </div>
+    </div>
 
-                                async function loadLoaders() {
-                                    try {
-                                        const response = await fetch(`${API_URL}/api/loaders`);
-                                        const loaders = await response.json();
-                                        const select = document.getElementById('loaderType');
+    <script>
+        const API_URL = 'http://localhost:8000';
 
-                                        select.innerHTML = '<option value="">-- Выберите загрузчик --</option>' +
-                                            loaders.map(l => {
-                                                componentSchemas.loaders[l.id] = l.config_schema;
-                                                return `<option value="${l.id}">${l.name}</option>`;
-                                            }).join('');
-                                    } catch (error) {
-                                        console.error('Error loading loaders:', error);
-                                    }
-                                }
+        // Store component schemas
+        let componentSchemas = {
+            loaders: {},
+            splitters: {},
+            embeddings: {},
+            databases: {}
+        };
 
-                                async function loadSplitters() {
-                                    try {
-                                        const response = await fetch(`${API_URL}/api/splitters`);
-                                        const splitters = await response.json();
-                                        const select = document.getElementById('splitterType');
+        // Store current parameter values
+        let currentParams = {
+            loader: {}, // For new pipeline mode
+            splitter: {}, // For new pipeline mode
+            loaderExisting: {}, // For new variant (existing pipeline mode)
+            splitterExisting: {}, // For new variant (existing pipeline mode)
+            embedding: {},
+            database: {}
+        };
 
-                                        select.innerHTML = '<option value="">-- Выберите разделитель --</option>' +
-                                            splitters.map(s => {
-                                                componentSchemas.splitters[s.id] = s.config_schema;
-                                                return `<option value="${s.id}">${s.name}</option>`;
-                                            }).join('');
-                                    } catch (error) {
-                                        console.error('Error loading splitters:', error);
-                                    }
-                                }
+        // ==========================================
+        // NEW MODE SELECTION VARIABLES
+        // ==========================================
+        let currentMode = 'new';  // 'new' or 'existing'
+        let selectedPipelineId = null;
+        let selectedVariantId = null;
 
-                                async function loadEmbeddings() {
-                                    try {
-                                        const response = await fetch(`${API_URL}/api/embeddings`);
-                                        const embeddings = await response.json();
-                                        const select = document.getElementById('embeddingType');
 
-                                        select.innerHTML = '<option value="">-- Выберите модель --</option>' +
-                                            embeddings.map(e => {
-                                                componentSchemas.embeddings[e.id] = e.config_schema;
-                                                return `<option value="${e.id}">${e.name}</option>`;
-                                            }).join('');
-                                    } catch (error) {
-                                        console.error('Error loading embeddings:', error);
-                                    }
-                                }
+        // Load components on page load
+        window.onload = async () => {
+            await loadLoaders();
+            await loadSplitters();
+            await loadEmbeddings();
+            await loadDatabases();
 
-                                async function loadDatabases() {
-                                    try {
-                                        const response = await fetch(`${API_URL}/api/databases`);
-                                        const databases = await response.json();
-                                        const select = document.getElementById('databaseType');
+            // Set initial status message display
+            document.getElementById('statusMessage').style.display = 'block';
+            showStatus('Выберите режим работы и компоненты', 'info');
 
-                                        select.innerHTML = '<option value="">-- Выберите базу данных --</option>' +
-                                            databases.map(d => {
-                                                componentSchemas.databases[d.id] = d.config_schema;
-                                                return `<option value="${d.id}">${d.name}</option>`;
-                                            }).join('');
-                                    } catch (error) {
-                                        console.error('Error loading databases:', error);
-                                    }
-                                }
+            // Initial button text update
+            updateProcessButtonText();
+        };
 
-                                // ==========================================
-                                // DYNAMIC PARAMETER LOADING
-                                // ==========================================
+        // ==========================================
+        // MODE SELECTION FUNCTIONS
+        // ==========================================
+        function selectMode(mode) {
+            currentMode = mode;
 
-                                function loadLoaderParams() {
-                                    const selectedType = document.getElementById('loaderType').value;
-                                    if (!selectedType) {
-                                        document.getElementById('loaderParams').style.display = 'none';
-                                        return;
-                                    }
+            // Update UI
+            document.getElementById('modeNew').classList.toggle('active', mode === 'new');
+            document.getElementById('modeExisting').classList.toggle('active', mode === 'existing');
 
-                                    const schema = componentSchemas.loaders[selectedType];
-                                    renderParams('loader', schema, 'loaderParamsContent');
-                                    document.getElementById('loaderParams').style.display = 'block';
-                                }
+            // Show/hide sections
+            document.getElementById('newPipelineSection').style.display = mode === 'new' ? 'block' : 'none';
+            document.getElementById('existingPipelineSection').style.display = mode === 'existing' ? 'block' : 'none';
 
-                                function loadSplitterParams() {
-                                    const selectedType = document.getElementById('splitterType').value;
-                                    if (!selectedType) {
-                                        document.getElementById('splitterParams').style.display = 'none';
-                                        return;
-                                    }
+            // Hide variant selection when switching to existing mode initially
+            document.getElementById('variantSelection').style.display = 'none';
+            document.getElementById('newVariantForm').style.display = 'none';
+            selectedPipelineId = null;
+            selectedVariantId = null;
 
-                                    const schema = componentSchemas.splitters[selectedType];
-                                    renderParams('splitter', schema, 'splitterParamsContent');
-                                    document.getElementById('splitterParams').style.display = 'block';
-                                }
 
-                                function loadEmbeddingParams() {
-                                    const selectedType = document.getElementById('embeddingType').value;
-                                    if (!selectedType) {
-                                        document.getElementById('embeddingParams').style.display = 'none';
-                                        return;
-                                    }
+            // Load pipelines if switching to existing mode
+            if (mode === 'existing') {
+                loadExistingPipelines();
+            }
 
-                                    const schema = componentSchemas.embeddings[selectedType];
-                                    renderParams('embedding', schema, 'embeddingParamsContent');
-                                    document.getElementById('embeddingParams').style.display = 'block';
-                                }
+            // Clear selections in 'new' mode if switching back
+            if (mode === 'new') {
+                // Reset form state if needed, here we just show the new section
+            }
 
-                                function loadDatabaseParams() {
-                                    const selectedType = document.getElementById('databaseType').value;
-                                    if (!selectedType) {
-                                        document.getElementById('databaseParams').style.display = 'none';
-                                        return;
-                                    }
+            // Update button text
+            updateProcessButtonText();
+        }
 
-                                    const schema = componentSchemas.databases[selectedType];
-                                    renderParams('database', schema, 'databaseParamsContent');
-                                    document.getElementById('databaseParams').style.display = 'block';
-                                }
+        async function loadExistingPipelines() {
+            const listContainer = document.getElementById('pipelineList');
+            listContainer.innerHTML = '<div class="empty-state">Загрузка...</div>';
+            try {
+                const response = await fetch(`${API_URL}/api/pipelines`);
 
-                                // ==========================================
-                                // RENDER PARAMETERS DYNAMICALLY
-                                // ==========================================
+                // Проверка статуса ответа
+                if (!response.ok) {
+                    let errorMessage = `Ошибка сервера: ${response.status} ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.detail || errorMessage;
+                    } catch (e) {
+                        // Игнорируем ошибку, если ответ не в формате JSON
+                    }
+                    throw new Error(errorMessage);
+                }
 
-                                function renderParams(componentType, schema, containerId) {
-                                    const container = document.getElementById(containerId);
-                                    container.innerHTML = '';
+                const pipelines = await response.json();
 
-                                    if (!schema || !schema.properties) {
-                                        container.innerHTML = '<div class="empty-state">Нет настраиваемых параметров</div>';
-                                        return;
-                                    }
+                if (pipelines.length === 0) {
+                    listContainer.innerHTML = '<div class="empty-state">Нет доступных пайплайнов</div>';
+                    return;
+                }
 
-                                    const properties = schema.properties;
+                // --- ИСПРАВЛЕНИЕ: Используем 'p.id' вместо 'p.pipeline_id' ---
+                listContainer.innerHTML = pipelines.map(p => `
+                    <div class="pipeline-item" onclick="selectPipeline(event, '${p.id}')">
+                        <h4>${p.name}</h4>
+                        <div class="pipeline-meta">
+                            ID: ${p.id.substring(0, 8)}... | 
+                            Создан: ${new Date(p.created_at).toLocaleDateString()}
+                        </div>
+                    </div>
+                `).join('');
+                // -------------------------------------------------------------
+            } catch (error) {
+                console.error('Error loading pipelines:', error);
+                listContainer.innerHTML = '<div class="empty-state">Ошибка загрузки</div>';
+                showStatus('Ошибка загрузки пайплайнов: ' + error.message, 'error');
+            }
+        }
 
-                                    // Skip 'type' field as it's already selected
-                                    Object.keys(properties).forEach(key => {
-                                        if (key === 'type') return;
+        async function selectPipeline(event, pipelineId) {
+            selectedPipelineId = pipelineId;
+            selectedVariantId = null; // Clear variant selection
 
-                                        const prop = properties[key];
-                                        const isRequired = schema.required && schema.required.includes(key);
+            // Update UI: highlight selected pipeline
+            document.querySelectorAll('.pipeline-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected'); // Use currentTarget for the div element
 
-                                        const formGroup = document.createElement('div');
-                                        formGroup.className = 'form-group';
+            // Hide new variant form and deselect variants
+            document.getElementById('newVariantForm').style.display = 'none';
+            document.querySelectorAll('.variant-item').forEach(item => {
+                item.classList.remove('selected');
+            });
 
-                                        // Create label
-                                        const label = document.createElement('label');
-                                        label.textContent = formatFieldName(key);
-                                        if (isRequired) {
-                                            label.innerHTML += ' <span style="color: red;">*</span>';
-                                        }
-                                        if (prop.description) {
-                                            label.innerHTML += `<span class="label-description">(${prop.description})</span>`;
-                                        }
-                                        formGroup.appendChild(label);
+            // Load variants for this pipeline
+            try {
+                const response = await fetch(`${API_URL}/api/pipelines/${pipelineId}`);
 
-                                        // Create input based on type
-                                        const input = createInputForType(componentType, key, prop);
-                                        formGroup.appendChild(input);
+                if (!response.ok) {
+                    let errorMessage = `Ошибка сервера: ${response.status} ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.detail || errorMessage;
+                    } catch (e) {
+                    }
+                    throw new Error(errorMessage);
+                }
 
-                                        container.appendChild(formGroup);
-                                    });
-                                }
+                const pipelineData = await response.json();
 
-                                function createInputForType(componentType, key, prop) {
-                                    const inputId = `${componentType}_${key}`;
-                                    let input;
+                const variantSelection = document.getElementById('variantSelection');
+                const variantList = document.getElementById('variantList');
 
-                                    // Check if it's a boolean
-                                    if (prop.type === 'boolean') {
-                                        const wrapper = document.createElement('div');
-                                        wrapper.className = 'checkbox-group';
+                if (!pipelineData.variants || pipelineData.variants.length === 0) {
+                    variantList.innerHTML = '<div class="empty-state">Нет вариантов. Создайте новый.</div>';
+                } else {
+                    variantList.innerHTML = pipelineData.variants.map(v => `
+                        <div class="variant-item" onclick="selectVariant(event, '${v.variant_id}')">
+                            <strong>${v.name}</strong>
+                            <div style="font-size: 0.85em; color: #666;">
+                                ${v.description || 'Без описания'} | 
+                                Файлов: ${v.files_processed || 0}
+                            </div>
+                        </div>
+                    `).join('');
+                }
 
-                                        input = document.createElement('input');
-                                        input.type = 'checkbox';
-                                        input.id = inputId;
-                                        input.checked = prop.default !== undefined ? prop.default : false;
+                variantSelection.style.display = 'block';
+                updateProcessButtonText();
 
-                                        const label = document.createElement('label');
-                                        label.htmlFor = inputId;
-                                        label.textContent = 'Включено';
-                                        label.style.fontWeight = 'normal';
+            } catch (error) {
+                console.error('Error loading variants:', error);
+                showStatus('Ошибка загрузки вариантов: ' + error.message, 'error');
+            }
+        }
 
-                                        wrapper.appendChild(input);
-                                        wrapper.appendChild(label);
+        function selectVariant(event, variantId) {
+            selectedVariantId = variantId;
 
-                                        input.addEventListener('change', (e) => {
-                                            currentParams[componentType][key] = e.target.checked;
-                                        });
+            // Update UI
+            document.querySelectorAll('.variant-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
 
-                                        currentParams[componentType][key] = input.checked;
-                                        return wrapper;
-                                    }
+            // Hide new variant form
+            document.getElementById('newVariantForm').style.display = 'none';
 
-                                    // Check if it's an enum (Literal in Pydantic)
-                                    if (prop.enum) {
-                                        input = document.createElement('select');
-                                        input.id = inputId;
+            updateProcessButtonText();
+        }
 
-                                        prop.enum.forEach(value => {
-                                            const option = document.createElement('option');
-                                            option.value = value;
-                                            option.textContent = value;
-                                            if (value === prop.default) {
-                                                option.selected = true;
-                                            }
-                                            input.appendChild(option);
-                                        });
+        function showNewVariantForm() {
+            const form = document.getElementById('newVariantForm');
+            const isVisible = form.style.display !== 'none';
 
-                                        input.addEventListener('change', (e) => {
-                                            currentParams[componentType][key] = e.target.value;
-                                        });
+            // Toggle visibility
+            form.style.display = isVisible ? 'none' : 'block';
 
-                                        currentParams[componentType][key] = input.value;
-                                        return input;
-                                    }
+            // Deselect any selected variant if the form is now visible
+            if (!isVisible) {
+                selectedVariantId = null;
+                document.querySelectorAll('.variant-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
 
-                                    // Number input
-                                    if (prop.type === 'integer' || prop.type === 'number') {
-                                        input = document.createElement('input');
-                                        input.type = 'number';
-                                        input.id = inputId;
+                // Ensure Loader/Splitter lists are loaded in existing mode form
+                document.getElementById('loaderTypeExisting').value = '';
+                document.getElementById('splitterTypeExisting').value = '';
+                loadLoaderParams('existing');
+                loadSplitterParams('existing');
+            }
 
-                                        if (prop.minimum !== undefined) input.min = prop.minimum;
-                                        if (prop.maximum !== undefined) input.max = prop.maximum;
-                                        if (prop.default !== undefined) input.value = prop.default;
+            updateProcessButtonText();
+        }
 
-                                        input.addEventListener('input', (e) => {
-                                            const value = prop.type === 'integer' ?
-                                                parseInt(e.target.value) :
-                                                parseFloat(e.target.value);
-                                            currentParams[componentType][key] = isNaN(value) ? null : value;
-                                        });
+        function updateProcessButtonText() {
+            const btn = document.getElementById('processBtn');
+            const newVariantFormVisible = document.getElementById('newVariantForm').style.display !== 'none';
 
-                                        currentParams[componentType][key] = input.value ?
-                                            (prop.type === 'integer' ? parseInt(input.value) : parseFloat(input.value)) :
-                                            null;
-                                        return input;
-                                    }
+            if (currentMode === 'new') {
+                btn.textContent = 'Создать пайплайн и обработать файл';
+            } else {
+                if (!selectedPipelineId) {
+                    btn.textContent = 'Выберите пайплайн';
+                    btn.disabled = true;
+                    return;
+                }
 
-                                    // Text input (default)
-                                    input = document.createElement('input');
-                                    input.type = 'text';
-                                    input.id = inputId;
-                                    if (prop.default !== undefined) {
-                                        input.value = prop.default;
-                                    }
+                if (selectedVariantId) {
+                    btn.textContent = 'Обработать файл с выбранным вариантом';
+                    btn.disabled = false;
+                } else if (newVariantFormVisible) {
+                    btn.textContent = 'Создать вариант и обработать файл';
+                    btn.disabled = false;
+                } else {
+                    btn.textContent = 'Выберите вариант или создайте новый';
+                    btn.disabled = true;
+                    return;
+                }
+            }
+            btn.disabled = false; // Enable if not caught by any disabled rule above
+        }
 
-                                    input.addEventListener('input', (e) => {
-                                        currentParams[componentType][key] = e.target.value;
-                                    });
 
-                                    currentParams[componentType][key] = input.value;
-                                    return input;
-                                }
+        // ==========================================
+        // LOAD COMPONENT LISTS (Existing code adapted)
+        // ==========================================
 
-                                function formatFieldName(key) {
-                                    // Convert snake_case to Title Case
-                                    return key
-                                        .split('_')
-                                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                        .join(' ');
-                                }
+        async function loadLoaders() {
+            try {
+                const response = await fetch(`${API_URL}/api/loaders`);
 
-                                // ==========================================
-                                // FILE HANDLING
-                                // ==========================================
+                if (!response.ok) throw new Error(`Ошибка загрузки загрузчиков: ${response.status}`);
 
-                                document.getElementById('fileInput').addEventListener('change', (e) => {
-                                    const file = e.target.files[0];
-                                    if (file) {
-                                        const fileInfo = document.getElementById('fileInfo');
-                                        fileInfo.style.display = 'flex';
-                                        fileInfo.innerHTML = `
+                const loaders = await response.json();
+                const selectNew = document.getElementById('loaderType');
+                const selectExisting = document.getElementById('loaderTypeExisting'); // New select for existing mode
+
+                const optionsHtml = '<option value="">-- Выберите загрузчик --</option>' +
+                    loaders.map(l => {
+                        componentSchemas.loaders[l.id] = l.config_schema;
+                        return `<option value="${l.id}">${l.name}</option>`;
+                    }).join('');
+
+                selectNew.innerHTML = optionsHtml;
+                if (selectExisting) {
+                    selectExisting.innerHTML = optionsHtml;
+                }
+            } catch (error) {
+                console.error('Error loading loaders:', error);
+            }
+        }
+
+        async function loadSplitters() {
+            try {
+                const response = await fetch(`${API_URL}/api/splitters`);
+
+                if (!response.ok) throw new Error(`Ошибка загрузки разделителей: ${response.status}`);
+
+                const splitters = await response.json();
+                const selectNew = document.getElementById('splitterType');
+                const selectExisting = document.getElementById('splitterTypeExisting'); // New select for existing mode
+
+                const optionsHtml = '<option value="">-- Выберите разделитель --</option>' +
+                    splitters.map(s => {
+                        componentSchemas.splitters[s.id] = s.config_schema;
+                        return `<option value="${s.id}">${s.name}</option>`;
+                    }).join('');
+
+                selectNew.innerHTML = optionsHtml;
+                if (selectExisting) {
+                    selectExisting.innerHTML = optionsHtml;
+                }
+            } catch (error) {
+                console.error('Error loading splitters:', error);
+            }
+        }
+
+        // ... loadEmbeddings and loadDatabases (no change, but kept for context) ...
+        async function loadEmbeddings() {
+            try {
+                const response = await fetch(`${API_URL}/api/embeddings`);
+
+                if (!response.ok) throw new Error(`Ошибка загрузки эмбеддингов: ${response.status}`);
+
+                const embeddings = await response.json();
+                const select = document.getElementById('embeddingType');
+
+                select.innerHTML = '<option value="">-- Выберите модель --</option>' +
+                    embeddings.map(e => {
+                        componentSchemas.embeddings[e.id] = e.config_schema;
+                        return `<option value="${e.id}">${e.name}</option>`;
+                    }).join('');
+            } catch (error) {
+                console.error('Error loading embeddings:', error);
+            }
+        }
+
+        async function loadDatabases() {
+            try {
+                const response = await fetch(`${API_URL}/api/databases`);
+
+                if (!response.ok) throw new Error(`Ошибка загрузки баз данных: ${response.status}`);
+
+                const databases = await response.json();
+                const select = document.getElementById('databaseType');
+
+                select.innerHTML = '<option value="">-- Выберите базу данных --</option>' +
+                    databases.map(d => {
+                        componentSchemas.databases[d.id] = d.config_schema;
+                        return `<option value="${d.id}">${d.name}</option>`;
+                    }).join('');
+            } catch (error) {
+                console.error('Error loading databases:', error);
+            }
+        }
+
+
+        // ==========================================
+        // DYNAMIC PARAMETER LOADING (Adapted for both modes)
+        // ==========================================
+
+        function loadLoaderParams(mode) {
+            const typeId = mode === 'new' ? 'loaderType' : 'loaderTypeExisting';
+            const paramsId = mode === 'new' ? 'loaderParams' : 'loaderParamsExisting';
+            const contentId = mode === 'new' ? 'loaderParamsContent' : 'loaderParamsContentExisting';
+            const paramKey = mode === 'new' ? 'loader' : 'loaderExisting';
+
+            const selectedType = document.getElementById(typeId).value;
+
+            if (!selectedType) {
+                document.getElementById(paramsId).style.display = 'none';
+                return;
+            }
+
+            const schema = componentSchemas.loaders[selectedType];
+            renderParams(paramKey, schema, contentId);
+            document.getElementById(paramsId).style.display = 'block';
+        }
+
+        function loadSplitterParams(mode) {
+            const typeId = mode === 'new' ? 'splitterType' : 'splitterTypeExisting';
+            const paramsId = mode === 'new' ? 'splitterParams' : 'splitterParamsExisting';
+            const contentId = mode === 'new' ? 'splitterParamsContent' : 'splitterParamsContentExisting';
+            const paramKey = mode === 'new' ? 'splitter' : 'splitterExisting';
+
+            const selectedType = document.getElementById(typeId).value;
+            if (!selectedType) {
+                document.getElementById(paramsId).style.display = 'none';
+                return;
+            }
+
+            const schema = componentSchemas.splitters[selectedType];
+            renderParams(paramKey, schema, contentId);
+            document.getElementById(paramsId).style.display = 'block';
+        }
+
+        // No change needed for Embedding/Database params as they are only in 'new' mode
+        function loadEmbeddingParams() {
+            const selectedType = document.getElementById('embeddingType').value;
+            if (!selectedType) {
+                document.getElementById('embeddingParams').style.display = 'none';
+                return;
+            }
+
+            const schema = componentSchemas.embeddings[selectedType];
+            renderParams('embedding', schema, 'embeddingParamsContent');
+            document.getElementById('embeddingParams').style.display = 'block';
+        }
+
+        function loadDatabaseParams() {
+            const selectedType = document.getElementById('databaseType').value;
+            if (!selectedType) {
+                document.getElementById('databaseParams').style.display = 'none';
+                return;
+            }
+
+            const schema = componentSchemas.databases[selectedType];
+            renderParams('database', schema, 'databaseParamsContent');
+            document.getElementById('databaseParams').style.display = 'block';
+        }
+
+
+        // ==========================================
+        // RENDER PARAMETERS DYNAMICALLY (Existing code, adjusted paramKey)
+        // ==========================================
+
+        function renderParams(componentParamKey, schema, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            // Reset params for the current component type
+            currentParams[componentParamKey] = {};
+
+            if (!schema || !schema.properties) {
+                container.innerHTML = '<div class="empty-state">Нет настраиваемых параметров</div>';
+                return;
+            }
+
+            const properties = schema.properties;
+
+            // Skip 'type' field as it's already selected
+            Object.keys(properties).forEach(key => {
+                if (key === 'type') return;
+
+                const prop = properties[key];
+                const isRequired = schema.required && schema.required.includes(key);
+
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group';
+
+                // Create label
+                const label = document.createElement('label');
+                label.textContent = formatFieldName(key);
+                if (isRequired) {
+                    label.innerHTML += ' <span style="color: red;">*</span>';
+                }
+                if (prop.description) {
+                    label.innerHTML += `<span class="label-description">(${prop.description})</span>`;
+                }
+                formGroup.appendChild(label);
+
+                // Create input based on type
+                const input = createInputForType(componentParamKey, key, prop);
+                formGroup.appendChild(input);
+
+                container.appendChild(formGroup);
+            });
+        }
+
+        function createInputForType(componentParamKey, key, prop) {
+            const inputId = `${componentParamKey}_${key}`;
+            let input;
+
+            // Check if it's a boolean
+            if (prop.type === 'boolean') {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'checkbox-group';
+
+                input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = inputId;
+                input.checked = prop.default !== undefined ? prop.default : false;
+
+                const label = document.createElement('label');
+                label.htmlFor = inputId;
+                label.textContent = 'Включено';
+                label.style.fontWeight = 'normal';
+
+                wrapper.appendChild(input);
+                wrapper.appendChild(label);
+
+                input.addEventListener('change', (e) => {
+                    currentParams[componentParamKey][key] = e.target.checked;
+                });
+
+                currentParams[componentParamKey][key] = input.checked;
+                return wrapper;
+            }
+
+            // Check if it's an enum (Literal in Pydantic)
+            if (prop.enum) {
+                input = document.createElement('select');
+                input.id = inputId;
+
+                prop.enum.forEach(value => {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = value;
+                    if (value === prop.default) {
+                        option.selected = true;
+                    }
+                    input.appendChild(option);
+                });
+
+                input.addEventListener('change', (e) => {
+                    currentParams[componentParamKey][key] = e.target.value;
+                });
+
+                currentParams[componentParamKey][key] = input.value;
+                return input;
+            }
+
+            // Number input
+            if (prop.type === 'integer' || prop.type === 'number') {
+                input = document.createElement('input');
+                input.type = 'number';
+                input.id = inputId;
+
+                if (prop.minimum !== undefined) input.min = prop.minimum;
+                if (prop.maximum !== undefined) input.max = prop.maximum;
+                if (prop.default !== undefined) input.value = prop.default;
+
+                input.addEventListener('input', (e) => {
+                    const value = prop.type === 'integer' ?
+                        parseInt(e.target.value) :
+                        parseFloat(e.target.value);
+                    currentParams[componentParamKey][key] = isNaN(value) ? null : value;
+                });
+
+                currentParams[componentParamKey][key] = input.value ?
+                    (prop.type === 'integer' ? parseInt(input.value) : parseFloat(input.value)) :
+                    null;
+                return input;
+            }
+
+            // Text input (default)
+            input = document.createElement('input');
+            input.type = 'text';
+            input.id = inputId;
+            if (prop.default !== undefined) {
+                input.value = prop.default;
+            }
+
+            input.addEventListener('input', (e) => {
+                currentParams[componentParamKey][key] = e.target.value;
+            });
+
+            currentParams[componentParamKey][key] = input.value;
+            return input;
+        }
+
+        function formatFieldName(key) {
+            // Convert snake_case to Title Case
+            return key
+                .split('_')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        }
+
+        // ==========================================
+        // FILE HANDLING
+        // ==========================================
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const fileInfo = document.getElementById('fileInfo');
+                fileInfo.style.display = 'flex';
+                fileInfo.innerHTML = `
                     <span>📄 ${file.name}</span>
                     <span>${(file.size / 1024 / 1024).toFixed(2)} MB</span>
                 `;
-                                    }
-                                });
+            } else {
+                document.getElementById('fileInfo').style.display = 'none';
+            }
+        });
 
-                                // ==========================================
-                                // PIPELINE PROCESSING (NEW ARCHITECTURE)
-                                // ==========================================
+        // ==========================================
+        // PIPELINE PROCESSING (UPDATED FOR BOTH MODES)
+        // ==========================================
 
-                                async function processPipeline() {
-                                    const file = document.getElementById('fileInput').files[0];
-                                    if (!file) {
-                                        alert('Пожалуйста, выберите файл');
-                                        return;
-                                    }
+        async function processPipeline() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
 
-                                    // Validate selections
-                                    const loaderType = document.getElementById('loaderType').value;
-                                    const splitterType = document.getElementById('splitterType').value;
-                                    const embeddingType = document.getElementById('embeddingType').value;
-                                    const databaseType = document.getElementById('databaseType').value;
+            // Temporarily disable the button
+            const btn = document.getElementById('processBtn');
+            const originalBtnText = btn.textContent;
+            btn.disabled = true;
 
-                                    if (!loaderType || !splitterType || !embeddingType || !databaseType) {
-                                        alert('Пожалуйста, выберите все компоненты');
-                                        return;
-                                    }
+            try {
+                let pipelineId, variantId;
 
-                                    const btn = document.getElementById('processBtn');
-                                    btn.disabled = true;
-                                    btn.textContent = 'Создание пайплайна...';
+                if (currentMode === 'new') {
+                    // Existing logic for creating new pipeline
 
-                                    try {
-                                        // Build NEW config: Pipeline with default_variant
-                                        const config = {
-                                            name: document.getElementById('pipelineName').value,
-                                            embedding: {
-                                                type: embeddingType,
-                                                ...currentParams.embedding
-                                            },
-                                            database: {
-                                                type: databaseType,
-                                                ...currentParams.database
-                                            },
-                                            default_variant: {
-                                                name: document.getElementById('variantName').value,
-                                                description: document.getElementById('variantDescription').value || null,
-                                                loader: {
-                                                    type: loaderType,
-                                                    ...currentParams.loader
-                                                },
-                                                splitter: {
-                                                    type: splitterType,
-                                                    ...currentParams.splitter
-                                                }
-                                            }
-                                        };
+                    // Validate selections for NEW mode
+                    const loaderType = document.getElementById('loaderType').value;
+                    const splitterType = document.getElementById('splitterType').value;
+                    const embeddingType = document.getElementById('embeddingType').value;
+                    const databaseType = document.getElementById('databaseType').value;
 
-                                        console.log('Pipeline config (NEW):', config);
+                    if (!loaderType || !splitterType || !embeddingType || !databaseType) {
+                        alert('Пожалуйста, выберите все компоненты');
+                        btn.disabled = false;
+                        return;
+                    }
 
-                                        // Create pipeline with default variant
-                                        showStatus('Создание пайплайна и варианта...', 'info');
-                                        const pipelineResp = await fetch(`${API_URL}/api/pipelines`, {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify(config)
-                                        });
+                    btn.textContent = 'Создание пайплайна...';
 
-                                        if (!pipelineResp.ok) {
-                                            const error = await pipelineResp.json();
-                                            throw new Error(error.detail || 'Ошибка создания пайплайна');
-                                        }
+                    // Build NEW config: Pipeline with default_variant
+                    const config = {
+                        name: document.getElementById('pipelineName').value,
+                        embedding: {
+                            type: embeddingType,
+                            ...currentParams.embedding
+                        },
+                        database: {
+                            type: databaseType,
+                            ...currentParams.database
+                        },
+                        default_variant: {
+                            name: document.getElementById('variantName').value,
+                            description: document.getElementById('variantDescription').value || null,
+                            loader: {
+                                type: loaderType,
+                                ...currentParams.loader
+                            },
+                            splitter: {
+                                type: splitterType,
+                                ...currentParams.splitter
+                            }
+                        }
+                    };
 
-                                        const pipelineData = await pipelineResp.json();
-                                        const pipelineId = pipelineData.pipeline_id;
-                                        const variantId = pipelineData.default_variant_id ||
-                                            (pipelineData.variants && pipelineData.variants[0]?.variant_id);
+                    showStatus('Создание пайплайна и варианта...', 'info');
+                    const pipelineResp = await fetch(`${API_URL}/api/pipelines`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(config)
+                    });
 
-                                        console.log('Pipeline created:', pipelineId);
-                                        console.log('Variant ID:', variantId);
-                                        console.log('Full response:', pipelineData);
+                    if (!pipelineResp.ok) {
+                        const error = await pipelineResp.json();
+                        throw new Error(error.detail || 'Ошибка создания пайплайна');
+                    }
 
-                                        // Show pipeline info
-                                        document.getElementById('taskInfo').style.display = 'block';
-                                        document.getElementById('pipelineIdDisplay').textContent = pipelineId.substring(0, 8) + '...';
-                                        document.getElementById('variantIdDisplay').textContent = variantId ? variantId.substring(0, 8) + '...' : 'N/A';
+                    const pipelineData = await pipelineResp.json();
+                    // Assuming the create response correctly returns pipeline_id/default_variant_id
+                    pipelineId = pipelineData.pipeline_id;
+                    variantId = pipelineData.default_variant_id ||
+                        (pipelineData.variants && pipelineData.variants[0]?.variant_id);
 
-                                        // Upload file (variant_id is optional, will use first available)
-                                        btn.textContent = 'Загрузка файла...';
-                                        showStatus('Загрузка файла для обработки...', 'info');
-                                        const formData = new FormData();
-                                        formData.append('file', file);
+                } else {
+                    // Existing pipeline mode
+                    const newVariantFormVisible = document.getElementById('newVariantForm').style.display !== 'none';
 
-                                        // Use the new unified endpoint
-                                        const uploadUrl = variantId
-                                            ? `${API_URL}/api/pipelines/${pipelineId}/process?variant_id=${variantId}`
-                                            : `${API_URL}/api/pipelines/${pipelineId}/process`;
+                    if (!selectedPipelineId) {
+                        alert('Выберите пайплайн');
+                        btn.disabled = false;
+                        updateProcessButtonText();
+                        return;
+                    }
 
-                                        const uploadResp = await fetch(uploadUrl, {
-                                            method: 'POST',
-                                            body: formData
-                                        });
+                    pipelineId = selectedPipelineId;
 
-                                        if (!uploadResp.ok) {
-                                            const error = await uploadResp.json();
-                                            throw new Error(error.detail || 'Ошибка загрузки файла');
-                                        }
+                    // Check if creating new variant or using existing
+                    if (newVariantFormVisible) {
+                        // Create new variant
+                        const loaderTypeExisting = document.getElementById('loaderTypeExisting').value;
+                        const splitterTypeExisting = document.getElementById('splitterTypeExisting').value;
 
-                                        const uploadData = await uploadResp.json();
-                                        const taskId = uploadData.task_id;
+                        if (!loaderTypeExisting || !splitterTypeExisting) {
+                            alert('Выберите загрузчик и разделитель для нового варианта');
+                            btn.disabled = false;
+                            updateProcessButtonText();
+                            return;
+                        }
 
-                                        console.log('Task created:', taskId);
-                                        console.log('Upload response:', uploadData);
+                        btn.textContent = 'Создание варианта...';
 
-                                        // Show task info
-                                        document.getElementById('taskIdDisplay').textContent = taskId.substring(0, 8) + '...';
-                                        document.getElementById('fileNameDisplay').textContent = file.name;
+                        const variantConfig = {
+                            name: document.getElementById('newVariantName').value,
+                            description: document.getElementById('newVariantDescription').value,
+                            loader: {
+                                type: loaderTypeExisting,
+                                ...currentParams.loaderExisting
+                            },
+                            splitter: {
+                                type: splitterTypeExisting,
+                                ...currentParams.splitterExisting
+                            }
+                        };
 
-                                        // Show progress
-                                        btn.textContent = 'Обработка файла...';
-                                        showStatus(uploadData.message || 'Задача поставлена в очередь', 'info');
+                        showStatus('Создание нового варианта...', 'info');
+                        const variantResp = await fetch(
+                            `${API_URL}/api/pipelines/${pipelineId}/variants`,
+                            {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(variantConfig)
+                            }
+                        );
 
-                                        // Poll for status
-                                        await pollTaskStatus(taskId);
+                        if (!variantResp.ok) {
+                            const error = await variantResp.json();
+                            throw new Error(error.detail || 'Ошибка создания варианта');
+                        }
 
-                                    } catch (error) {
-                                        console.error('Processing error:', error);
-                                        showStatus(`Ошибка: ${error.message}`, 'error');
-                                        btn.disabled = false;
-                                        btn.textContent = 'Создать пайплайн и обработать файл';
-                                    }
-                                }
+                        const variantData = await variantResp.json();
+                        variantId = variantData.variant_id;
 
-                                async function pollTaskStatus(taskId) {
-                                    const progressContainer = document.getElementById('progressContainer');
-                                    const progressFill = document.getElementById('progressFill');
+                    } else if (selectedVariantId) {
+                        // Use selected variant
+                        variantId = selectedVariantId;
+                        btn.textContent = 'Обработка файла...';
+                    } else {
+                        alert('Выберите вариант или создайте новый');
+                        btn.disabled = false;
+                        updateProcessButtonText();
+                        return;
+                    }
+                }
 
-                                    progressContainer.style.display = 'block';
+                // --- Upload and process file (same for both modes) ---
 
-                                    let pollCount = 0;
-                                    const maxPolls = 600; // 10 минут максимум
+                // Show pipeline info (using the determined IDs)
+                document.getElementById('taskInfo').style.display = 'block';
+                document.getElementById('pipelineIdDisplay').textContent = pipelineId.substring(0, 8) + '...';
+                document.getElementById('variantIdDisplay').textContent = variantId ? variantId.substring(0, 8) + '...' : 'N/A';
 
-                                    const interval = setInterval(async () => {
-                                        pollCount++;
+                btn.textContent = 'Загрузка файла...';
+                showStatus('Загрузка файла для обработки...', 'info');
+                const formData = new FormData();
+                formData.append('file', file);
 
-                                        if (pollCount > maxPolls) {
-                                            clearInterval(interval);
-                                            showStatus('⏱ Превышено время ожидания. Проверьте задачу позже.', 'error');
-                                            document.getElementById('processBtn').disabled = false;
-                                            document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
-                                            return;
-                                        }
+                const uploadUrl = variantId
+                    ? `${API_URL}/api/pipelines/${pipelineId}/process?variant_id=${variantId}`
+                    : `${API_URL}/api/pipelines/${pipelineId}/process`;
 
-                                        try {
-                                            const response = await fetch(`${API_URL}/api/tasks/${taskId}`);
+                const uploadResp = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: formData
+                });
 
-                                            if (!response.ok) {
-                                                console.error('Failed to fetch task status:', response.status);
-                                                return;
-                                            }
+                if (!uploadResp.ok) {
+                    const error = await uploadResp.json();
+                    throw new Error(error.detail || 'Ошибка загрузки файла');
+                }
 
-                                            const task = await response.json();
-                                            console.log('Task status:', task);
+                const uploadData = await uploadResp.json();
+                const taskId = uploadData.task_id;
 
-                                            const progress = (task.progress || 0) * 100;
-                                            progressFill.style.width = progress + '%';
-                                            progressFill.textContent = Math.round(progress) + '%';
+                // Show task info
+                document.getElementById('taskIdDisplay').textContent = taskId.substring(0, 8) + '...';
+                document.getElementById('fileNameDisplay').textContent = file.name;
 
-                                            showStatus(task.message || 'Обработка...', 'info');
+                // Show progress
+                btn.textContent = 'Обработка файла...';
+                showStatus(uploadData.message || 'Задача поставлена в очередь', 'info');
 
-                                            if (task.status === 'completed') {
-                                                clearInterval(interval);
-                                                progressFill.style.width = '100%';
-                                                progressFill.textContent = '100%';
-                                                showStatus('✅ Обработка завершена успешно!', 'success');
-                                                document.getElementById('processBtn').disabled = false;
-                                                document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
-                                                showResults(task);
-                                            } else if (task.status === 'failed') {
-                                                clearInterval(interval);
-                                                showStatus(`❌ Ошибка: ${task.error || 'Неизвестная ошибка'}`, 'error');
-                                                document.getElementById('processBtn').disabled = false;
-                                                document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
-                                            } else if (task.status === 'processing') {
-                                                document.getElementById('processBtn').textContent =
-                                                    `Обработка... ${Math.round(progress)}%`;
-                                            }
-                                        } catch (error) {
-                                            console.error('Error polling task status:', error);
-                                        }
-                                    }, 1000); // Poll every second
-                                }
+                // Poll for status
+                await pollTaskStatus(taskId);
 
-                                function showStatus(message, type) {
-                                    const statusEl = document.getElementById('statusMessage');
-                                    statusEl.textContent = message;
-                                    statusEl.className = `status-message status-${type}`;
-                                }
+            } catch (error) {
+                console.error('Processing error:', error);
+                showStatus(`Ошибка: ${error.message}`, 'error');
+                btn.disabled = false;
+                // Use the function to reset button text based on current state
+                updateProcessButtonText();
+            }
+        }
 
-                                function showResults(task) {
-                                    const resultsSection = document.getElementById('resultsSection');
-                                    resultsSection.style.display = 'block';
 
-                                    const statsEl = document.getElementById('stats');
-                                    statsEl.innerHTML = `
+        // ==========================================
+        // STATUS POLLING AND DISPLAY (Existing code)
+        // ==========================================
+        async function pollTaskStatus(taskId) {
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+
+            progressContainer.style.display = 'block';
+
+            let pollCount = 0;
+            const maxPolls = 600; // 10 минут максимум
+
+            const interval = setInterval(async () => {
+                pollCount++;
+
+                if (pollCount > maxPolls) {
+                    clearInterval(interval);
+                    showStatus('⏱ Превышено время ожидания. Проверьте задачу позже.', 'error');
+                    document.getElementById('processBtn').disabled = false;
+                    updateProcessButtonText();
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_URL}/api/tasks/${taskId}`);
+
+                    if (!response.ok) {
+                        console.error('Failed to fetch task status:', response.status);
+                        return;
+                    }
+
+                    const task = await response.json();
+                    console.log('Task status:', task);
+
+                    const progress = (task.progress || 0) * 100;
+                    progressFill.style.width = progress + '%';
+                    progressFill.textContent = Math.round(progress) + '%';
+
+                    showStatus(task.message || 'Обработка...', 'info');
+
+                    if (task.status === 'completed') {
+                        clearInterval(interval);
+                        progressFill.style.width = '100%';
+                        progressFill.textContent = '100%';
+                        showStatus('✅ Обработка завершена успешно!', 'success');
+                        document.getElementById('processBtn').disabled = false;
+                        updateProcessButtonText();
+                        showResults(task);
+                    } else if (task.status === 'failed') {
+                        clearInterval(interval);
+                        showStatus(`❌ Ошибка: ${task.error || 'Неизвестная ошибка'}`, 'error');
+                        document.getElementById('processBtn').disabled = false;
+                        updateProcessButtonText();
+                    } else if (task.status === 'processing') {
+                        document.getElementById('processBtn').textContent =
+                            `Обработка... ${Math.round(progress)}%`;
+                    }
+                } catch (error) {
+                    console.error('Error polling task status:', error);
+                }
+            }, 1000); // Poll every second
+        }
+
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status-message status-${type}`;
+        }
+
+        function showResults(task) {
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.style.display = 'block';
+
+            const statsEl = document.getElementById('stats');
+            statsEl.innerHTML = `
                 <div class="stat-card">
                     <div class="stat-value">✓</div>
                     <div class="stat-label">Статус</div>
@@ -1110,10 +1526,10 @@
                 ` : ''}
             `;
 
-                                    // Scroll to results
-                                    resultsSection.scrollIntoView({ behavior: 'smooth' });
-                                }
-                            </script>
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
 </body>
 
 </html>
