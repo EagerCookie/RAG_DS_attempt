@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG Pipeline Builder</title>
+    <title>RAG Pipeline Builder - New Architecture</title>
     <style>
         * {
             margin: 0;
@@ -40,6 +40,23 @@
             margin-bottom: 10px;
         }
 
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .architecture-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .architecture-info strong {
+            color: #ffd700;
+        }
+
         .content {
             padding: 40px;
         }
@@ -52,10 +69,32 @@
             border-left: 4px solid #667eea;
         }
 
+        .section.variant-section {
+            border-left-color: #ff6b6b;
+        }
+
+        .section.knowledge-base-section {
+            border-left-color: #51cf66;
+        }
+
         .section h2 {
             color: #333;
             margin-bottom: 20px;
             font-size: 1.3em;
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .info-box.success {
+            background: #d4edda;
+            border-color: #28a745;
         }
 
         .form-group {
@@ -267,6 +306,139 @@
             color: #999;
             font-style: italic;
         }
+
+        .variant-badge {
+            display: inline-block;
+            background: #ff6b6b;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+
+        .kb-badge {
+            display: inline-block;
+            background: #51cf66;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+
+        .mode-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .mode-card {
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .mode-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .mode-card.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+
+        .mode-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .mode-card p {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .pipeline-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .pipeline-item {
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .pipeline-item:hover {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+
+        .pipeline-item.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+
+        .pipeline-item h4 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .pipeline-item .pipeline-meta {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .variant-list {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+
+        .variant-item {
+            padding: 10px;
+            background: white;
+            border-left: 3px solid #ff6b6b;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .variant-item:hover {
+            background: #fff5f5;
+        }
+
+        .variant-item.selected {
+            background: #ffe0e0;
+            border-left-width: 5px;
+        }
+
+        .create-new-variant-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .create-new-variant-btn:hover {
+            background: #ff5252;
+        }
     </style>
 </head>
 
@@ -274,616 +446,650 @@
     <div class="container">
         <div class="header">
             <h1>🚀 RAG Pipeline Builder</h1>
-            <p>Создайте и настройте ваш пайплайн для обработки документов</p>
+            <p>Новая архитектура: Pipeline (База знаний) + Variant (Способ обработки)</p>
+            <div class="architecture-info">
+                <strong>Pipeline</strong> = Embedding + Database (база знаний)<br>
+                <strong>Variant</strong> = Loader + Splitter (способ обработки документов)
+            </div>
         </div>
 
         <div class="content">
-            <!-- Pipeline Name -->
+            <!-- Mode Selection -->
             <div class="section">
-                <h2>📝 Название пайплайна</h2>
+                <h2>🎯 Режим работы</h2>
+                <div class="mode-selector">
+                    <div class="mode-card active" id="modeNew" onclick="selectMode('new')">
+                        <h3>✨ Создать новый</h3>
+                        <p>Создать новый пайплайн с вариантом обработки</p>
+                    </div>
+                    <div class="mode-card" id="modeExisting" onclick="selectMode('existing')">
+                        <h3>📚 Использовать существующий</h3>
+                        <p>Выбрать готовый пайплайн и вариант</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Existing Pipeline Selection (hidden by default) -->
+            <div class="section" id="existingPipelineSection" style="display: none;">
+                <h2>📚 Выбор пайплайна и варианта</h2>
                 <div class="form-group">
-                    <label>Имя</label>
-                    <input type="text" id="pipelineName" value="my_pipeline" placeholder="Введите название">
+                    <label>Доступные пайплайны</label>
+                    <div id="pipelineList" class="pipeline-list">
+                        <div class="empty-state">Загрузка...</div>
+                    </div>
+                </div>
+                <div id="variantSelection" style="display: none; margin-top: 20px;">
+                    <label>Варианты обработки для выбранного пайплайна</label>
+                    <div id="variantList" class="variant-list"></div>
+                    <button class="create-new-variant-btn" onclick="showNewVariantForm()">
+                        + Создать новый вариант
+                    </button>
                 </div>
             </div>
 
-            <!-- Loader -->
-            <div class="section">
-                <h2>📄 1. Загрузчик документов</h2>
-                <div class="form-group">
-                    <label>
-                        Тип загрузчика
-                        <span style="color: #999; font-size: 0.85em; font-weight: normal;">
-                            (можно менять для разных типов файлов)
-                        </span>
-                    </label>
-                    <select id="loaderType" onchange="loadLoaderParams()">
-                        <option value="">Загрузка...</option>
-                    </select>
+            <!-- New Pipeline Creation (shown by default) -->
+            <div id="newPipelineSection">
+                <!-- Pipeline Name -->
+                <div class="section">
+                    <h2>📝 Название пайплайна (базы знаний)</h2>
+                    <div class="form-group">
+                        <label>Имя</label>
+                        <input type="text" id="pipelineName" value="my_knowledge_base" placeholder="Введите название">
+                    </div>
                 </div>
-                <div id="loaderParams" class="dynamic-params" style="display: none;">
-                    <h3>Параметры загрузчика</h3>
-                    <div id="loaderParamsContent" class="param-grid"></div>
+
+                <!-- Knowledge Base Section (Embedding + Database) -->
+                <div class="section knowledge-base-section">
+                    <h2>🧠 База знаний <span class="kb-badge">Pipeline</span></h2>
+                    <div class="info-box success">
+                        💡 <strong>База знаний</strong> определяет как хранятся и векторизуются документы.
+                        Создается один раз и используется для разных типов файлов.
+                    </div>
+
+                    <!-- Embedding -->
+                    <div style="margin-top: 20px;">
+                        <h3 style="color: #51cf66; margin-bottom: 15px;">Модель эмбеддингов</h3>
+                        <div class="form-group">
+                            <label>Тип эмбеддинга</label>
+                            <select id="embeddingType" onchange="loadEmbeddingParams()">
+                                <option value="">Загрузка...</option>
+                            </select>
+                        </div>
+                        <div id="embeddingParams" class="dynamic-params" style="display: none;">
+                            <h3>Параметры эмбеддинга</h3>
+                            <div id="embeddingParamsContent" class="param-grid"></div>
+                        </div>
+                    </div>
+
+                    <!-- Database -->
+                    <div style="margin-top: 20px;">
+                        <h3 style="color: #51cf66; margin-bottom: 15px;">Векторная база данных</h3>
+                        <div class="form-group">
+                            <label>Тип базы данных</label>
+                            <select id="databaseType" onchange="loadDatabaseParams()">
+                                <option value="">Загрузка...</option>
+                            </select>
+                        </div>
+                        <div id="databaseParams" class="dynamic-params" style="display: none;">
+                            <h3>Параметры базы данных</h3>
+                            <div id="databaseParamsContent" class="param-grid"></div>
+                        </div>
+                    </div>
                 </div>
-                <div
-                    style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 8px; font-size: 0.85em;">
-                    💡 <strong>Совет:</strong> Можно менять loader/splitter для обработки разных типов файлов в один
-                    пайплайн
-                </div>
-            </div>
 
-            <!-- Splitter -->
-            <div class="section">
-                <h2>✂️ 2. Разделитель текста</h2>
-                <div class="form-group">
-                    <label>Тип разделителя</label>
-                    <select id="splitterType" onchange="loadSplitterParams()">
-                        <option value="">Загрузка...</option>
-                    </select>
-                </div>
-                <div id="splitterParams" class="dynamic-params" style="display: none;">
-                    <h3>Параметры разделителя</h3>
-                    <div id="splitterParamsContent" class="param-grid"></div>
-                </div>
-            </div>
+                <!-- Variant Section (Loader + Splitter) -->
+                <div class="section variant-section">
+                    <h2>✂️ Вариант обработки <span class="variant-badge">Variant</span></h2>
+                    <div class="info-box">
+                        💡 <strong>Вариант обработки</strong> определяет как загружать и разбивать документы.
+                        Можно создать несколько вариантов для разных типов файлов (PDF, TXT, DOCX).
+                    </div>
 
-            <!-- Embedding -->
-            <div class="section">
-                <h2>🧠 3. Модель эмбеддингов</h2>
-                <div class="form-group">
-                    <label>Тип эмбеддинга</label>
-                    <select id="embeddingType" onchange="loadEmbeddingParams()">
-                        <option value="">Загрузка...</option>
-                    </select>
-                </div>
-                <div id="embeddingParams" class="dynamic-params" style="display: none;">
-                    <h3>Параметры эмбеддинга</h3>
-                    <div id="embeddingParamsContent" class="param-grid"></div>
-                </div>
-            </div>
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label>Название варианта</label>
+                        <input type="text" id="variantName" value="Default Variant"
+                            placeholder="Например: PDF Processor">
+                    </div>
 
-            <!-- Database -->
-            <div class="section">
-                <h2>💾 4. Векторная база данных</h2>
-                <div class="form-group">
-                    <label>Тип базы данных</label>
-                    <select id="databaseType" onchange="loadDatabaseParams()">
-                        <option value="">Загрузка...</option>
-                    </select>
-                </div>
-                <div id="databaseParams" class="dynamic-params" style="display: none;">
-                    <h3>Параметры базы данных</h3>
-                    <div id="databaseParamsContent" class="param-grid"></div>
-                </div>
-            </div>
+                    <div class="form-group">
+                        <label>Описание (опционально)</label>
+                        <input type="text" id="variantDescription" placeholder="Например: Для обработки PDF документов">
+                    </div>
 
-            <!-- File Upload -->
-            <div class="section">
-                <h2>📤 5. Загрузить файл</h2>
-                <div class="form-group">
-                    <label>Выберите файл для обработки</label>
-                    <input type="file" id="fileInput" accept=".pdf,.txt,.md">
-                    <div id="fileInfo" class="file-info" style="display: none;"></div>
-                </div>
-                <button id="processBtn" onclick="processPipeline()">
-                    Создать пайплайн и обработать файл
-                </button>
-            </div>
+                    <!-- Loader -->
+                    <div style="margin-top: 20px;">
+                        <h3 style="color: #ff6b6b; margin-bottom: 15px;">Загрузчик документов</h3>
+                        <div class="form-group">
+                            <label>Тип загрузчика</label>
+                            <select id="loaderType" onchange="loadLoaderParams()">
+                                <option value="">Загрузка...</option>
+                            </select>
+                        </div>
+                        <div id="loaderParams" class="dynamic-params" style="display: none;">
+                            <h3>Параметры загрузчика</h3>
+                            <div id="loaderParamsContent" class="param-grid"></div>
+                        </div>
+                    </div>
 
-            <!-- Progress -->
-            <div class="progress-container" id="progressContainer">
-                <h3>Обработка...</h3>
-                <div id="taskInfo"
-                    style="margin-bottom: 10px; padding: 10px; background: #f0f0f0; border-radius: 8px; font-size: 0.9em; display: none;">
-                    <strong>Task ID:</strong> <span id="taskIdDisplay">-</span><br>
-                    <strong>Файл:</strong> <span id="fileNameDisplay">-</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill">0%</div>
-                </div>
-                <div id="statusMessage" class="status-message status-info"></div>
-            </div>
+                    <!-- Splitter -->
+                    <div style="margin-top: 20px;">
+                        <h3 style="color: #ff6b6b; margin-bottom: 15px;">Разделитель текста</h3>
+                        <div class="form-group">
+                            <label>Тип разделителя</label>
+                            <select id="splitterType" onchange="loadSplitterParams()">
+                                <option value="">Загрузка...</option>
+                            </select>
+                        </div>
+                        <div id="splitterParams" class="dynamic-params" style="display: none;">
+                            <h3>Параметры разделителя</h3>
+                            <div id="splitterParamsContent" class="param-grid"></div>
 
-            <!-- Results -->
-            <div class="section" id="resultsSection" style="display: none;">
-                <h2>✅ Результаты</h2>
-                <div class="stats" id="stats"></div>
-            </div>
-        </div>
-    </div>
+                            <script>
+                                const API_URL = 'http://localhost:8000';
 
-    <script>
-        const API_URL = 'http://localhost:8000';
+                                // Store component schemas
+                                let componentSchemas = {
+                                    loaders: {},
+                                    splitters: {},
+                                    embeddings: {},
+                                    databases: {}
+                                };
 
-        // Store component schemas
-        let componentSchemas = {
-            loaders: {},
-            splitters: {},
-            embeddings: {},
-            databases: {}
-        };
+                                // Store current parameter values
+                                let currentParams = {
+                                    loader: {},
+                                    splitter: {},
+                                    embedding: {},
+                                    database: {}
+                                };
 
-        // Store current parameter values
-        let currentParams = {
-            loader: {},
-            splitter: {},
-            embedding: {},
-            database: {}
-        };
+                                // Load components on page load
+                                window.onload = async () => {
+                                    await loadLoaders();
+                                    await loadSplitters();
+                                    await loadEmbeddings();
+                                    await loadDatabases();
+                                };
 
-        // Load components on page load
-        window.onload = async () => {
-            await loadLoaders();
-            await loadSplitters();
-            await loadEmbeddings();
-            await loadDatabases();
-        };
+                                // ==========================================
+                                // LOAD COMPONENT LISTS
+                                // ==========================================
 
-        // ==========================================
-        // LOAD COMPONENT LISTS
-        // ==========================================
+                                async function loadLoaders() {
+                                    try {
+                                        const response = await fetch(`${API_URL}/api/loaders`);
+                                        const loaders = await response.json();
+                                        const select = document.getElementById('loaderType');
 
-        async function loadLoaders() {
-            try {
-                const response = await fetch(`${API_URL}/api/loaders`);
-                const loaders = await response.json();
-                const select = document.getElementById('loaderType');
+                                        select.innerHTML = '<option value="">-- Выберите загрузчик --</option>' +
+                                            loaders.map(l => {
+                                                componentSchemas.loaders[l.id] = l.config_schema;
+                                                return `<option value="${l.id}">${l.name}</option>`;
+                                            }).join('');
+                                    } catch (error) {
+                                        console.error('Error loading loaders:', error);
+                                    }
+                                }
 
-                select.innerHTML = '<option value="">-- Выберите загрузчик --</option>' +
-                    loaders.map(l => {
-                        componentSchemas.loaders[l.id] = l.config_schema;
-                        return `<option value="${l.id}">${l.name}</option>`;
-                    }).join('');
-            } catch (error) {
-                console.error('Error loading loaders:', error);
-                showStatus('Ошибка загрузки списка загрузчиков', 'error');
-            }
-        }
+                                async function loadSplitters() {
+                                    try {
+                                        const response = await fetch(`${API_URL}/api/splitters`);
+                                        const splitters = await response.json();
+                                        const select = document.getElementById('splitterType');
 
-        async function loadSplitters() {
-            try {
-                const response = await fetch(`${API_URL}/api/splitters`);
-                const splitters = await response.json();
-                const select = document.getElementById('splitterType');
+                                        select.innerHTML = '<option value="">-- Выберите разделитель --</option>' +
+                                            splitters.map(s => {
+                                                componentSchemas.splitters[s.id] = s.config_schema;
+                                                return `<option value="${s.id}">${s.name}</option>`;
+                                            }).join('');
+                                    } catch (error) {
+                                        console.error('Error loading splitters:', error);
+                                    }
+                                }
 
-                select.innerHTML = '<option value="">-- Выберите разделитель --</option>' +
-                    splitters.map(s => {
-                        componentSchemas.splitters[s.id] = s.config_schema;
-                        return `<option value="${s.id}">${s.name}</option>`;
-                    }).join('');
-            } catch (error) {
-                console.error('Error loading splitters:', error);
-            }
-        }
+                                async function loadEmbeddings() {
+                                    try {
+                                        const response = await fetch(`${API_URL}/api/embeddings`);
+                                        const embeddings = await response.json();
+                                        const select = document.getElementById('embeddingType');
 
-        async function loadEmbeddings() {
-            try {
-                const response = await fetch(`${API_URL}/api/embeddings`);
-                const embeddings = await response.json();
-                const select = document.getElementById('embeddingType');
+                                        select.innerHTML = '<option value="">-- Выберите модель --</option>' +
+                                            embeddings.map(e => {
+                                                componentSchemas.embeddings[e.id] = e.config_schema;
+                                                return `<option value="${e.id}">${e.name}</option>`;
+                                            }).join('');
+                                    } catch (error) {
+                                        console.error('Error loading embeddings:', error);
+                                    }
+                                }
 
-                select.innerHTML = '<option value="">-- Выберите модель --</option>' +
-                    embeddings.map(e => {
-                        componentSchemas.embeddings[e.id] = e.config_schema;
-                        return `<option value="${e.id}">${e.name}</option>`;
-                    }).join('');
-            } catch (error) {
-                console.error('Error loading embeddings:', error);
-            }
-        }
+                                async function loadDatabases() {
+                                    try {
+                                        const response = await fetch(`${API_URL}/api/databases`);
+                                        const databases = await response.json();
+                                        const select = document.getElementById('databaseType');
 
-        async function loadDatabases() {
-            try {
-                const response = await fetch(`${API_URL}/api/databases`);
-                const databases = await response.json();
-                const select = document.getElementById('databaseType');
+                                        select.innerHTML = '<option value="">-- Выберите базу данных --</option>' +
+                                            databases.map(d => {
+                                                componentSchemas.databases[d.id] = d.config_schema;
+                                                return `<option value="${d.id}">${d.name}</option>`;
+                                            }).join('');
+                                    } catch (error) {
+                                        console.error('Error loading databases:', error);
+                                    }
+                                }
 
-                select.innerHTML = '<option value="">-- Выберите базу данных --</option>' +
-                    databases.map(d => {
-                        componentSchemas.databases[d.id] = d.config_schema;
-                        return `<option value="${d.id}">${d.name}</option>`;
-                    }).join('');
-            } catch (error) {
-                console.error('Error loading databases:', error);
-            }
-        }
+                                // ==========================================
+                                // DYNAMIC PARAMETER LOADING
+                                // ==========================================
 
-        // ==========================================
-        // DYNAMIC PARAMETER LOADING
-        // ==========================================
+                                function loadLoaderParams() {
+                                    const selectedType = document.getElementById('loaderType').value;
+                                    if (!selectedType) {
+                                        document.getElementById('loaderParams').style.display = 'none';
+                                        return;
+                                    }
 
-        function loadLoaderParams() {
-            const selectedType = document.getElementById('loaderType').value;
-            if (!selectedType) {
-                document.getElementById('loaderParams').style.display = 'none';
-                return;
-            }
+                                    const schema = componentSchemas.loaders[selectedType];
+                                    renderParams('loader', schema, 'loaderParamsContent');
+                                    document.getElementById('loaderParams').style.display = 'block';
+                                }
 
-            const schema = componentSchemas.loaders[selectedType];
-            renderParams('loader', schema, 'loaderParamsContent');
-            document.getElementById('loaderParams').style.display = 'block';
-        }
+                                function loadSplitterParams() {
+                                    const selectedType = document.getElementById('splitterType').value;
+                                    if (!selectedType) {
+                                        document.getElementById('splitterParams').style.display = 'none';
+                                        return;
+                                    }
 
-        function loadSplitterParams() {
-            const selectedType = document.getElementById('splitterType').value;
-            if (!selectedType) {
-                document.getElementById('splitterParams').style.display = 'none';
-                return;
-            }
+                                    const schema = componentSchemas.splitters[selectedType];
+                                    renderParams('splitter', schema, 'splitterParamsContent');
+                                    document.getElementById('splitterParams').style.display = 'block';
+                                }
 
-            const schema = componentSchemas.splitters[selectedType];
-            renderParams('splitter', schema, 'splitterParamsContent');
-            document.getElementById('splitterParams').style.display = 'block';
-        }
+                                function loadEmbeddingParams() {
+                                    const selectedType = document.getElementById('embeddingType').value;
+                                    if (!selectedType) {
+                                        document.getElementById('embeddingParams').style.display = 'none';
+                                        return;
+                                    }
 
-        function loadEmbeddingParams() {
-            const selectedType = document.getElementById('embeddingType').value;
-            if (!selectedType) {
-                document.getElementById('embeddingParams').style.display = 'none';
-                return;
-            }
+                                    const schema = componentSchemas.embeddings[selectedType];
+                                    renderParams('embedding', schema, 'embeddingParamsContent');
+                                    document.getElementById('embeddingParams').style.display = 'block';
+                                }
 
-            const schema = componentSchemas.embeddings[selectedType];
-            renderParams('embedding', schema, 'embeddingParamsContent');
-            document.getElementById('embeddingParams').style.display = 'block';
-        }
+                                function loadDatabaseParams() {
+                                    const selectedType = document.getElementById('databaseType').value;
+                                    if (!selectedType) {
+                                        document.getElementById('databaseParams').style.display = 'none';
+                                        return;
+                                    }
 
-        function loadDatabaseParams() {
-            const selectedType = document.getElementById('databaseType').value;
-            if (!selectedType) {
-                document.getElementById('databaseParams').style.display = 'none';
-                return;
-            }
+                                    const schema = componentSchemas.databases[selectedType];
+                                    renderParams('database', schema, 'databaseParamsContent');
+                                    document.getElementById('databaseParams').style.display = 'block';
+                                }
 
-            const schema = componentSchemas.databases[selectedType];
-            renderParams('database', schema, 'databaseParamsContent');
-            document.getElementById('databaseParams').style.display = 'block';
-        }
+                                // ==========================================
+                                // RENDER PARAMETERS DYNAMICALLY
+                                // ==========================================
 
-        // ==========================================
-        // RENDER PARAMETERS DYNAMICALLY
-        // ==========================================
+                                function renderParams(componentType, schema, containerId) {
+                                    const container = document.getElementById(containerId);
+                                    container.innerHTML = '';
 
-        function renderParams(componentType, schema, containerId) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
+                                    if (!schema || !schema.properties) {
+                                        container.innerHTML = '<div class="empty-state">Нет настраиваемых параметров</div>';
+                                        return;
+                                    }
 
-            if (!schema || !schema.properties) {
-                container.innerHTML = '<div class="empty-state">Нет настраиваемых параметров</div>';
-                return;
-            }
+                                    const properties = schema.properties;
 
-            const properties = schema.properties;
+                                    // Skip 'type' field as it's already selected
+                                    Object.keys(properties).forEach(key => {
+                                        if (key === 'type') return;
 
-            // Skip 'type' field as it's already selected
-            Object.keys(properties).forEach(key => {
-                if (key === 'type') return;
+                                        const prop = properties[key];
+                                        const isRequired = schema.required && schema.required.includes(key);
 
-                const prop = properties[key];
-                const isRequired = schema.required && schema.required.includes(key);
+                                        const formGroup = document.createElement('div');
+                                        formGroup.className = 'form-group';
 
-                const formGroup = document.createElement('div');
-                formGroup.className = 'form-group';
+                                        // Create label
+                                        const label = document.createElement('label');
+                                        label.textContent = formatFieldName(key);
+                                        if (isRequired) {
+                                            label.innerHTML += ' <span style="color: red;">*</span>';
+                                        }
+                                        if (prop.description) {
+                                            label.innerHTML += `<span class="label-description">(${prop.description})</span>`;
+                                        }
+                                        formGroup.appendChild(label);
 
-                // Create label
-                const label = document.createElement('label');
-                label.textContent = formatFieldName(key);
-                if (isRequired) {
-                    label.innerHTML += ' <span style="color: red;">*</span>';
-                }
-                if (prop.description) {
-                    label.innerHTML += `<span class="label-description">(${prop.description})</span>`;
-                }
-                formGroup.appendChild(label);
+                                        // Create input based on type
+                                        const input = createInputForType(componentType, key, prop);
+                                        formGroup.appendChild(input);
 
-                // Create input based on type
-                const input = createInputForType(componentType, key, prop);
-                formGroup.appendChild(input);
+                                        container.appendChild(formGroup);
+                                    });
+                                }
 
-                container.appendChild(formGroup);
-            });
-        }
+                                function createInputForType(componentType, key, prop) {
+                                    const inputId = `${componentType}_${key}`;
+                                    let input;
 
-        function createInputForType(componentType, key, prop) {
-            const inputId = `${componentType}_${key}`;
-            let input;
+                                    // Check if it's a boolean
+                                    if (prop.type === 'boolean') {
+                                        const wrapper = document.createElement('div');
+                                        wrapper.className = 'checkbox-group';
 
-            // Check if it's a boolean
-            if (prop.type === 'boolean') {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'checkbox-group';
+                                        input = document.createElement('input');
+                                        input.type = 'checkbox';
+                                        input.id = inputId;
+                                        input.checked = prop.default !== undefined ? prop.default : false;
 
-                input = document.createElement('input');
-                input.type = 'checkbox';
-                input.id = inputId;
-                input.checked = prop.default !== undefined ? prop.default : false;
+                                        const label = document.createElement('label');
+                                        label.htmlFor = inputId;
+                                        label.textContent = 'Включено';
+                                        label.style.fontWeight = 'normal';
 
-                const label = document.createElement('label');
-                label.htmlFor = inputId;
-                label.textContent = 'Включено';
-                label.style.fontWeight = 'normal';
+                                        wrapper.appendChild(input);
+                                        wrapper.appendChild(label);
 
-                wrapper.appendChild(input);
-                wrapper.appendChild(label);
+                                        input.addEventListener('change', (e) => {
+                                            currentParams[componentType][key] = e.target.checked;
+                                        });
 
-                input.addEventListener('change', (e) => {
-                    currentParams[componentType][key] = e.target.checked;
-                });
+                                        currentParams[componentType][key] = input.checked;
+                                        return wrapper;
+                                    }
 
-                currentParams[componentType][key] = input.checked;
-                return wrapper;
-            }
+                                    // Check if it's an enum (Literal in Pydantic)
+                                    if (prop.enum) {
+                                        input = document.createElement('select');
+                                        input.id = inputId;
 
-            // Check if it's an enum (Literal in Pydantic)
-            if (prop.enum) {
-                input = document.createElement('select');
-                input.id = inputId;
+                                        prop.enum.forEach(value => {
+                                            const option = document.createElement('option');
+                                            option.value = value;
+                                            option.textContent = value;
+                                            if (value === prop.default) {
+                                                option.selected = true;
+                                            }
+                                            input.appendChild(option);
+                                        });
 
-                prop.enum.forEach(value => {
-                    const option = document.createElement('option');
-                    option.value = value;
-                    option.textContent = value;
-                    if (value === prop.default) {
-                        option.selected = true;
-                    }
-                    input.appendChild(option);
-                });
+                                        input.addEventListener('change', (e) => {
+                                            currentParams[componentType][key] = e.target.value;
+                                        });
 
-                input.addEventListener('change', (e) => {
-                    currentParams[componentType][key] = e.target.value;
-                });
+                                        currentParams[componentType][key] = input.value;
+                                        return input;
+                                    }
 
-                currentParams[componentType][key] = input.value;
-                return input;
-            }
+                                    // Number input
+                                    if (prop.type === 'integer' || prop.type === 'number') {
+                                        input = document.createElement('input');
+                                        input.type = 'number';
+                                        input.id = inputId;
 
-            // Number input
-            if (prop.type === 'integer' || prop.type === 'number') {
-                input = document.createElement('input');
-                input.type = 'number';
-                input.id = inputId;
+                                        if (prop.minimum !== undefined) input.min = prop.minimum;
+                                        if (prop.maximum !== undefined) input.max = prop.maximum;
+                                        if (prop.default !== undefined) input.value = prop.default;
 
-                if (prop.minimum !== undefined) input.min = prop.minimum;
-                if (prop.maximum !== undefined) input.max = prop.maximum;
-                if (prop.default !== undefined) input.value = prop.default;
+                                        input.addEventListener('input', (e) => {
+                                            const value = prop.type === 'integer' ?
+                                                parseInt(e.target.value) :
+                                                parseFloat(e.target.value);
+                                            currentParams[componentType][key] = isNaN(value) ? null : value;
+                                        });
 
-                input.addEventListener('input', (e) => {
-                    const value = prop.type === 'integer' ?
-                        parseInt(e.target.value) :
-                        parseFloat(e.target.value);
-                    currentParams[componentType][key] = isNaN(value) ? null : value;
-                });
+                                        currentParams[componentType][key] = input.value ?
+                                            (prop.type === 'integer' ? parseInt(input.value) : parseFloat(input.value)) :
+                                            null;
+                                        return input;
+                                    }
 
-                currentParams[componentType][key] = input.value ?
-                    (prop.type === 'integer' ? parseInt(input.value) : parseFloat(input.value)) :
-                    null;
-                return input;
-            }
+                                    // Text input (default)
+                                    input = document.createElement('input');
+                                    input.type = 'text';
+                                    input.id = inputId;
+                                    if (prop.default !== undefined) {
+                                        input.value = prop.default;
+                                    }
 
-            // Text input (default)
-            input = document.createElement('input');
-            input.type = 'text';
-            input.id = inputId;
-            if (prop.default !== undefined) {
-                input.value = prop.default;
-            }
+                                    input.addEventListener('input', (e) => {
+                                        currentParams[componentType][key] = e.target.value;
+                                    });
 
-            input.addEventListener('input', (e) => {
-                currentParams[componentType][key] = e.target.value;
-            });
+                                    currentParams[componentType][key] = input.value;
+                                    return input;
+                                }
 
-            currentParams[componentType][key] = input.value;
-            return input;
-        }
+                                function formatFieldName(key) {
+                                    // Convert snake_case to Title Case
+                                    return key
+                                        .split('_')
+                                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                        .join(' ');
+                                }
 
-        function formatFieldName(key) {
-            // Convert snake_case to Title Case
-            return key
-                .split('_')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ');
-        }
+                                // ==========================================
+                                // FILE HANDLING
+                                // ==========================================
 
-        // ==========================================
-        // FILE HANDLING
-        // ==========================================
-
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const fileInfo = document.getElementById('fileInfo');
-                fileInfo.style.display = 'flex';
-                fileInfo.innerHTML = `
+                                document.getElementById('fileInput').addEventListener('change', (e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        const fileInfo = document.getElementById('fileInfo');
+                                        fileInfo.style.display = 'flex';
+                                        fileInfo.innerHTML = `
                     <span>📄 ${file.name}</span>
                     <span>${(file.size / 1024 / 1024).toFixed(2)} MB</span>
                 `;
-            }
-        });
+                                    }
+                                });
 
-        // ==========================================
-        // PIPELINE PROCESSING
-        // ==========================================
+                                // ==========================================
+                                // PIPELINE PROCESSING (NEW ARCHITECTURE)
+                                // ==========================================
 
-        async function processPipeline() {
-            const file = document.getElementById('fileInput').files[0];
-            if (!file) {
-                alert('Пожалуйста, выберите файл');
-                return;
-            }
+                                async function processPipeline() {
+                                    const file = document.getElementById('fileInput').files[0];
+                                    if (!file) {
+                                        alert('Пожалуйста, выберите файл');
+                                        return;
+                                    }
 
-            // Validate selections
-            const loaderType = document.getElementById('loaderType').value;
-            const splitterType = document.getElementById('splitterType').value;
-            const embeddingType = document.getElementById('embeddingType').value;
-            const databaseType = document.getElementById('databaseType').value;
+                                    // Validate selections
+                                    const loaderType = document.getElementById('loaderType').value;
+                                    const splitterType = document.getElementById('splitterType').value;
+                                    const embeddingType = document.getElementById('embeddingType').value;
+                                    const databaseType = document.getElementById('databaseType').value;
 
-            if (!loaderType || !splitterType || !embeddingType || !databaseType) {
-                alert('Пожалуйста, выберите все компоненты пайплайна');
-                return;
-            }
+                                    if (!loaderType || !splitterType || !embeddingType || !databaseType) {
+                                        alert('Пожалуйста, выберите все компоненты');
+                                        return;
+                                    }
 
-            const btn = document.getElementById('processBtn');
-            btn.disabled = true;
-            btn.textContent = 'Создание пайплайна...';
+                                    const btn = document.getElementById('processBtn');
+                                    btn.disabled = true;
+                                    btn.textContent = 'Создание пайплайна...';
 
-            try {
-                // Build config with dynamic parameters
-                const config = {
-                    name: document.getElementById('pipelineName').value,
-                    loader: {
-                        type: loaderType,
-                        ...currentParams.loader
-                    },
-                    splitter: {
-                        type: splitterType,
-                        ...currentParams.splitter
-                    },
-                    embedding: {
-                        type: embeddingType,
-                        ...currentParams.embedding
-                    },
-                    database: {
-                        type: databaseType,
-                        ...currentParams.database
-                    }
-                };
+                                    try {
+                                        // Build NEW config: Pipeline with default_variant
+                                        const config = {
+                                            name: document.getElementById('pipelineName').value,
+                                            embedding: {
+                                                type: embeddingType,
+                                                ...currentParams.embedding
+                                            },
+                                            database: {
+                                                type: databaseType,
+                                                ...currentParams.database
+                                            },
+                                            default_variant: {
+                                                name: document.getElementById('variantName').value,
+                                                description: document.getElementById('variantDescription').value || null,
+                                                loader: {
+                                                    type: loaderType,
+                                                    ...currentParams.loader
+                                                },
+                                                splitter: {
+                                                    type: splitterType,
+                                                    ...currentParams.splitter
+                                                }
+                                            }
+                                        };
 
-                console.log('Pipeline config:', config);
+                                        console.log('Pipeline config (NEW):', config);
 
-                // Create pipeline
-                showStatus('Создание пайплайна...', 'info');
-                const pipelineResp = await fetch(`${API_URL}/api/pipelines`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(config)
-                });
+                                        // Create pipeline with default variant
+                                        showStatus('Создание пайплайна и варианта...', 'info');
+                                        const pipelineResp = await fetch(`${API_URL}/api/pipelines`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify(config)
+                                        });
 
-                if (!pipelineResp.ok) {
-                    const error = await pipelineResp.json();
-                    throw new Error(error.detail || 'Ошибка создания пайплайна');
-                }
+                                        if (!pipelineResp.ok) {
+                                            const error = await pipelineResp.json();
+                                            throw new Error(error.detail || 'Ошибка создания пайплайна');
+                                        }
 
-                const pipelineData = await pipelineResp.json();
-                const pipelineId = pipelineData.pipeline_id;
-                console.log('Pipeline created:', pipelineId);
+                                        const pipelineData = await pipelineResp.json();
+                                        const pipelineId = pipelineData.pipeline_id;
+                                        const variantId = pipelineData.default_variant_id ||
+                                            (pipelineData.variants && pipelineData.variants[0]?.variant_id);
 
-                // Upload file
-                btn.textContent = 'Загрузка файла...';
-                showStatus('Загрузка файла...', 'info');
-                const formData = new FormData();
-                formData.append('file', file);
+                                        console.log('Pipeline created:', pipelineId);
+                                        console.log('Variant ID:', variantId);
+                                        console.log('Full response:', pipelineData);
 
-                const uploadResp = await fetch(
-                    `${API_URL}/api/pipelines/${pipelineId}/process`,
-                    { method: 'POST', body: formData }
-                );
+                                        // Show pipeline info
+                                        document.getElementById('taskInfo').style.display = 'block';
+                                        document.getElementById('pipelineIdDisplay').textContent = pipelineId.substring(0, 8) + '...';
+                                        document.getElementById('variantIdDisplay').textContent = variantId ? variantId.substring(0, 8) + '...' : 'N/A';
 
-                if (!uploadResp.ok) {
-                    const error = await uploadResp.json();
-                    throw new Error(error.detail || 'Ошибка загрузки файла');
-                }
+                                        // Upload file (variant_id is optional, will use first available)
+                                        btn.textContent = 'Загрузка файла...';
+                                        showStatus('Загрузка файла для обработки...', 'info');
+                                        const formData = new FormData();
+                                        formData.append('file', file);
 
-                const uploadData = await uploadResp.json();
-                const taskId = uploadData.task_id;
+                                        // Use the new unified endpoint
+                                        const uploadUrl = variantId
+                                            ? `${API_URL}/api/pipelines/${pipelineId}/process?variant_id=${variantId}`
+                                            : `${API_URL}/api/pipelines/${pipelineId}/process`;
 
-                console.log('Task created:', taskId);
-                console.log('Upload response:', uploadData);
+                                        const uploadResp = await fetch(uploadUrl, {
+                                            method: 'POST',
+                                            body: formData
+                                        });
 
-                // Show task info
-                document.getElementById('taskInfo').style.display = 'block';
-                document.getElementById('taskIdDisplay').textContent = taskId.substring(0, 8) + '...';
-                document.getElementById('fileNameDisplay').textContent = file.name;
+                                        if (!uploadResp.ok) {
+                                            const error = await uploadResp.json();
+                                            throw new Error(error.detail || 'Ошибка загрузки файла');
+                                        }
 
-                // Show progress immediately
-                btn.textContent = 'Обработка файла...';
-                showStatus(uploadData.message || 'Задача поставлена в очередь', 'info');
+                                        const uploadData = await uploadResp.json();
+                                        const taskId = uploadData.task_id;
 
-                // Poll for status
-                await pollTaskStatus(taskId);
+                                        console.log('Task created:', taskId);
+                                        console.log('Upload response:', uploadData);
 
-            } catch (error) {
-                console.error('Processing error:', error);
-                showStatus(`Ошибка: ${error.message}`, 'error');
-                btn.disabled = false;
-                btn.textContent = 'Создать пайплайн и обработать файл';
-            }
-        }
+                                        // Show task info
+                                        document.getElementById('taskIdDisplay').textContent = taskId.substring(0, 8) + '...';
+                                        document.getElementById('fileNameDisplay').textContent = file.name;
 
-        async function pollTaskStatus(taskId) {
-            const progressContainer = document.getElementById('progressContainer');
-            const progressFill = document.getElementById('progressFill');
-            const statusMessage = document.getElementById('statusMessage');
+                                        // Show progress
+                                        btn.textContent = 'Обработка файла...';
+                                        showStatus(uploadData.message || 'Задача поставлена в очередь', 'info');
 
-            progressContainer.style.display = 'block';
+                                        // Poll for status
+                                        await pollTaskStatus(taskId);
 
-            let pollCount = 0;
-            const maxPolls = 600; // 10 минут максимум (600 секунд)
+                                    } catch (error) {
+                                        console.error('Processing error:', error);
+                                        showStatus(`Ошибка: ${error.message}`, 'error');
+                                        btn.disabled = false;
+                                        btn.textContent = 'Создать пайплайн и обработать файл';
+                                    }
+                                }
 
-            const interval = setInterval(async () => {
-                pollCount++;
+                                async function pollTaskStatus(taskId) {
+                                    const progressContainer = document.getElementById('progressContainer');
+                                    const progressFill = document.getElementById('progressFill');
 
-                if (pollCount > maxPolls) {
-                    clearInterval(interval);
-                    showStatus('⏱ Превышено время ожидания. Проверьте задачу позже.', 'error');
-                    document.getElementById('processBtn').disabled = false;
-                    document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
-                    return;
-                }
+                                    progressContainer.style.display = 'block';
 
-                try {
-                    const response = await fetch(`${API_URL}/api/tasks/${taskId}`);
+                                    let pollCount = 0;
+                                    const maxPolls = 600; // 10 минут максимум
 
-                    if (!response.ok) {
-                        console.error('Failed to fetch task status:', response.status);
-                        return; // Continue polling
-                    }
+                                    const interval = setInterval(async () => {
+                                        pollCount++;
 
-                    const task = await response.json();
-                    console.log('Task status:', task);
+                                        if (pollCount > maxPolls) {
+                                            clearInterval(interval);
+                                            showStatus('⏱ Превышено время ожидания. Проверьте задачу позже.', 'error');
+                                            document.getElementById('processBtn').disabled = false;
+                                            document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
+                                            return;
+                                        }
 
-                    const progress = (task.progress || 0) * 100;
-                    progressFill.style.width = progress + '%';
-                    progressFill.textContent = Math.round(progress) + '%';
+                                        try {
+                                            const response = await fetch(`${API_URL}/api/tasks/${taskId}`);
 
-                    showStatus(task.message || 'Обработка...', 'info');
+                                            if (!response.ok) {
+                                                console.error('Failed to fetch task status:', response.status);
+                                                return;
+                                            }
 
-                    if (task.status === 'completed') {
-                        clearInterval(interval);
-                        progressFill.style.width = '100%';
-                        progressFill.textContent = '100%';
-                        showStatus('✅ Обработка завершена успешно!', 'success');
-                        document.getElementById('processBtn').disabled = false;
-                        document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
-                        showResults(task);
-                    } else if (task.status === 'failed') {
-                        clearInterval(interval);
-                        showStatus(`❌ Ошибка: ${task.error || 'Неизвестная ошибка'}`, 'error');
-                        document.getElementById('processBtn').disabled = false;
-                        document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
-                    } else if (task.status === 'processing') {
-                        // Update button text to show it's processing
-                        document.getElementById('processBtn').textContent =
-                            `Обработка... ${Math.round(progress)}%`;
-                    }
-                } catch (error) {
-                    console.error('Error polling task status:', error);
-                    // Don't clear interval on error, might be temporary network issue
-                }
-            }, 1000); // Poll every second
-        }
+                                            const task = await response.json();
+                                            console.log('Task status:', task);
 
-        function showStatus(message, type) {
-            const statusEl = document.getElementById('statusMessage');
-            statusEl.textContent = message;
-            statusEl.className = `status-message status-${type}`;
-        }
+                                            const progress = (task.progress || 0) * 100;
+                                            progressFill.style.width = progress + '%';
+                                            progressFill.textContent = Math.round(progress) + '%';
 
-        function showResults(task) {
-            const resultsSection = document.getElementById('resultsSection');
-            resultsSection.style.display = 'block';
+                                            showStatus(task.message || 'Обработка...', 'info');
 
-            const statsEl = document.getElementById('stats');
-            statsEl.innerHTML = `
+                                            if (task.status === 'completed') {
+                                                clearInterval(interval);
+                                                progressFill.style.width = '100%';
+                                                progressFill.textContent = '100%';
+                                                showStatus('✅ Обработка завершена успешно!', 'success');
+                                                document.getElementById('processBtn').disabled = false;
+                                                document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
+                                                showResults(task);
+                                            } else if (task.status === 'failed') {
+                                                clearInterval(interval);
+                                                showStatus(`❌ Ошибка: ${task.error || 'Неизвестная ошибка'}`, 'error');
+                                                document.getElementById('processBtn').disabled = false;
+                                                document.getElementById('processBtn').textContent = 'Создать пайплайн и обработать файл';
+                                            } else if (task.status === 'processing') {
+                                                document.getElementById('processBtn').textContent =
+                                                    `Обработка... ${Math.round(progress)}%`;
+                                            }
+                                        } catch (error) {
+                                            console.error('Error polling task status:', error);
+                                        }
+                                    }, 1000); // Poll every second
+                                }
+
+                                function showStatus(message, type) {
+                                    const statusEl = document.getElementById('statusMessage');
+                                    statusEl.textContent = message;
+                                    statusEl.className = `status-message status-${type}`;
+                                }
+
+                                function showResults(task) {
+                                    const resultsSection = document.getElementById('resultsSection');
+                                    resultsSection.style.display = 'block';
+
+                                    const statsEl = document.getElementById('stats');
+                                    statsEl.innerHTML = `
                 <div class="stat-card">
                     <div class="stat-value">✓</div>
                     <div class="stat-label">Статус</div>
@@ -896,12 +1102,18 @@
                     <div class="stat-value">${task.status}</div>
                     <div class="stat-label">Состояние</div>
                 </div>
+                ${task.variant_id ? `
+                <div class="stat-card">
+                    <div class="stat-value" style="font-size: 1.2em;">🔧</div>
+                    <div class="stat-label">Variant: ${task.variant_id.substring(0, 8)}...</div>
+                </div>
+                ` : ''}
             `;
 
-            // Scroll to results
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
-        }
-    </script>
+                                    // Scroll to results
+                                    resultsSection.scrollIntoView({ behavior: 'smooth' });
+                                }
+                            </script>
 </body>
 
 </html>
