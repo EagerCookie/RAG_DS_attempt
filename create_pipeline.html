@@ -360,14 +360,36 @@
             <!-- File Upload -->
             <div class="section">
                 <h2>📤 5. Загрузить файл</h2>
+
+                <!-- Выбор варианта -->
+                <div class="form-group" id="variantSelectGroup" style="display: none;">
+                    <label>
+                        Вариант обработки
+                        <span style="color: #999; font-size: 0.85em;">(опционально)</span>
+                    </label>
+                    <select id="variantSelect">
+                        <option value="">Default variant</option>
+                    </select>
+                    <div style="margin-top: 8px; font-size: 0.85em; color: #666;">
+                        Используйте другой вариант для файлов с другими параметрами обработки
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>Выберите файл для обработки</label>
                     <input type="file" id="fileInput" accept=".pdf,.txt,.md">
                     <div id="fileInfo" class="file-info" style="display: none;"></div>
                 </div>
+
                 <button id="processBtn" onclick="processPipeline()">
                     Создать пайплайн и обработать файл
                 </button>
+
+                <div
+                    style="margin-top: 15px; padding: 12px; background: #e3f2fd; border-radius: 8px; font-size: 0.85em;">
+                    <strong>💡 Совет:</strong> При создании пайплайна автоматически создаётся "Default" вариант.
+                    Вы можете создать дополнительные варианты для обработки файлов с другими настройками.
+                </div>
             </div>
 
             <!-- Progress -->
@@ -765,17 +787,25 @@
 
                 const pipelineData = await pipelineResp.json();
                 const pipelineId = pipelineData.pipeline_id;
-                console.log('Pipeline created:', pipelineId);
+                const defaultVariantId = pipelineData.default_variant_id;
 
-                // Upload file
+                console.log('Pipeline created:', pipelineId);
+                console.log('Default variant:', defaultVariantId);
+
+                // Upload file with single endpoint
                 btn.textContent = 'Загрузка файла...';
                 showStatus('Загрузка файла...', 'info');
+
                 const formData = new FormData();
                 formData.append('file', file);
 
+                // Используем единый эндпоинт /api/process
                 const uploadResp = await fetch(
-                    `${API_URL}/api/pipelines/${pipelineId}/process`,
-                    { method: 'POST', body: formData }
+                    `${API_URL}/api/process?pipeline_id=${pipelineId}`,
+                    {
+                        method: 'POST',
+                        body: formData
+                    }
                 );
 
                 if (!uploadResp.ok) {

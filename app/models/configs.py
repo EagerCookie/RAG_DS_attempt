@@ -104,3 +104,18 @@ class PipelineConfig(BaseModel):
     splitter: SplitterConfig = Field(..., description="Splitter configuration")
     embedding: EmbeddingConfig = Field(..., description="Embedding configuration")
     database: DatabaseConfig = Field(..., description="Database configuration")
+
+
+class PipelineConfigSimplified(BaseModel):
+    """Упрощённая конфигурация пайплайна - только неизменяемое"""
+    name: str = Field(default="default_pipeline")
+    embedding: EmbeddingConfig = Field(..., description="Embedding configuration")
+    database: DatabaseConfig = Field(..., description="Database configuration")
+
+
+class ProcessingVariantConfig(BaseModel):
+    """Вариант обработки - изменяемая часть"""
+    name: str = "Default"
+    loader: LoaderConfig
+    splitter: SplitterConfig
+    is_default: bool = False
