@@ -790,6 +790,166 @@ class RAGQueryResponse(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
+# ==========================================
+# LLM CALLING FUNCTION
+# ==========================================
+
+async def call_llm(
+    provider: str,
+    model: str,
+    query: str,
+    context: str,
+    temperature: float = 0.0,
+    custom_api_url: Optional[str] = None
+) -> str:
+    """
+    Вызывает LLM для генерации ответа на основе контекста
+    
+    Поддерживает:
+    - OpenAI (gpt-4o, gpt-4o-mini, etc.)
+    - Anthropic (claude-3-5-sonnet, etc.)
+    - DeepSeek (deepseek-chat, etc.)
+    - Custom API (LM Studio, Ollama, etc.)
+    """
+    import httpx
+    import os
+    
+    # Создать промпт
+    system_prompt = """Ты - полезный ассистент, который отвечает на вопросы на основе предоставленного контекста.
+Используй только информацию из контекста для ответа. Если в контексте нет информации для ответа, так и скажи.
+Отвечай на том же языке, на котором задан вопрос."""
+    
+    user_prompt = f"""Контекст:
+{context}
+
+Вопрос: {query}
+
+Ответ:"""
+    
+    try:
+        if provider == "openai":
+            # OpenAI API
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY not set in environment")
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "temperature": temperature,
+                        "max_tokens": 2000
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+        
+        elif provider == "anthropic":
+            # Anthropic API
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("ANTHROPIC_API_KEY not set in environment")
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "max_tokens": 2000,
+                        "temperature": temperature,
+                        "system": system_prompt,
+                        "messages": [
+                            {"role": "user", "content": user_prompt}
+                        ]
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["content"][0]["text"]
+        
+        elif provider == "deepseek":
+            # DeepSeek API (OpenAI-compatible)
+            api_key = os.getenv("DEEPSEEK_API_KEY")
+            if not api_key:
+                raise ValueError("DEEPSEEK_API_KEY not set in environment")
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    "https://api.deepseek.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "temperature": temperature,
+                        "max_tokens": 2000
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+        
+        elif provider == "custom":
+            # Custom API (OpenAI-compatible: LM Studio, Ollama, etc.)
+            if not custom_api_url:
+                raise ValueError("custom_api_url is required for custom provider")
+            
+            # Убедимся что URL заканчивается на /chat/completions
+            if not custom_api_url.endswith("/chat/completions"):
+                if custom_api_url.endswith("/v1"):
+                    api_url = f"{custom_api_url}/chat/completions"
+                else:
+                    api_url = f"{custom_api_url}/v1/chat/completions"
+            else:
+                api_url = custom_api_url
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    api_url,
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "temperature": temperature,
+                        "max_tokens": 2000
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+        
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+    
+    except httpx.HTTPStatusError as e:
+        raise ValueError(f"LLM API error: {e.response.status_code} - {e.response.text}")
+    except Exception as e:
+        raise ValueError(f"LLM call failed: {str(e)}")
+
+
 @app.post("/api/rag/query", response_model=RAGQueryResponse)
 async def rag_query(request: RAGQueryRequest):
     """
