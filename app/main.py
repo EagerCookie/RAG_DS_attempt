@@ -442,6 +442,13 @@ async def get_task_status(task_id: str):
 # PROCESSING VARIANTS ENDPOINTS
 # ==========================================
 
+@app.get("/api/variants")
+async def list_all_variants():
+    """Get all processing variants from all pipelines"""
+    variants = db_manager.list_all_variants()
+    return variants
+
+
 @app.post("/api/pipelines/{pipeline_id}/variants", response_model=ProcessingVariantResponse)
 async def create_variant(pipeline_id: str, variant_config: ProcessingVariantConfig):
     """

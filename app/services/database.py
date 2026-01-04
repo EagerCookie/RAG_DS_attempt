@@ -176,6 +176,22 @@ class DatabaseManager:
             ''', (pipeline_id,))
             return [dict(row) for row in cursor.fetchall()]
 
+    def list_all_variants(self) -> List[Dict]:
+        """Получить все варианты обработки из всех пайплайнов"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT v.id, v.pipeline_id, v.name, v.description, v.created_at, v.config,
+                    p.name as pipeline_name,
+                    COUNT(f.id) as files_processed
+                FROM processing_variants v
+                JOIN pipelines p ON v.pipeline_id = p.id
+                LEFT JOIN files f ON f.variant_id = v.id
+                GROUP BY v.id
+                ORDER BY v.created_at DESC
+            ''')
+            return [dict(row) for row in cursor.fetchall()]
+
     # ==========================================
     # PIPELINE OPERATIONS
     # ==========================================
