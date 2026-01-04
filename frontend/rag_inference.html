@@ -41,13 +41,13 @@
         }
 
         .content {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 0;
+            display: flex;
             min-height: calc(100vh - 200px);
         }
 
         .sidebar {
+            flex: 0 0 350px;
+            /* Fixed width, no grow, no shrink */
             background: #f8f9fa;
             border-right: 2px solid #e0e0e0;
             padding: 30px;
@@ -55,6 +55,10 @@
         }
 
         .main-area {
+            flex: 1;
+            /* Take remaining space */
+            min-width: 0;
+            /* Critical for preventing flex item overflow */
             padding: 30px;
             display: flex;
             flex-direction: column;
