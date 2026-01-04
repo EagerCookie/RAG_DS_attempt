@@ -85,7 +85,7 @@ class HuggingFaceEmbeddingConfig(EmbeddingConfigBase):
     model_name: str = Field(default="DeepVk/USER-bge-m3", description="HuggingFace model name")
     device: Literal["cpu", "cuda"] = Field(default="cpu", description="Device to use")
     normalize_embeddings: bool = Field(default=True, description="Normalize embeddings")
-    cache_folder: str = Field(default="./transformers_models", description="Cache directory")
+    cache_folder: str = Field(default="./data/transformers_models", description="Cache directory")
 
 
 EmbeddingConfig = HuggingFaceEmbeddingConfig
@@ -102,7 +102,7 @@ class DatabaseConfigBase(BaseModel):
 class ChromaDBConfig(DatabaseConfigBase):
     type: Literal["chroma"] = "chroma"
     collection_name: str = Field(default="example_collection", description="Collection name")
-    persist_directory: str = Field(default="./chroma_langchain_db", description="Storage directory")
+    persist_directory: str = Field(default="./data/chroma_langchain_db", description="Storage directory")
 
 
 class QdrantDBConfig(DatabaseConfigBase):

@@ -10,7 +10,7 @@ import os
 import sys
 
 
-def inspect_chroma_database(persist_directory="./chroma_langchain_db"):
+def inspect_chroma_database(persist_directory="./data/chroma_langchain_db"):
     """
     Инспектирует Chroma базу данных и выводит информацию
     
@@ -132,7 +132,7 @@ def inspect_chroma_database(persist_directory="./chroma_langchain_db"):
         traceback.print_exc()
 
 
-def test_search(persist_directory="./chroma_langchain_db", collection_name=None, query_text="test"):
+def test_search(persist_directory="./data/chroma_langchain_db", collection_name=None, query_text="test"):
     """
     Тестовый поиск в коллекции
     
@@ -173,7 +173,7 @@ def test_search(persist_directory="./chroma_langchain_db", collection_name=None,
             model_name="DeepVk/USER-bge-m3",  # Замените на вашу модель
             model_kwargs={'device': 'cpu'},
             encode_kwargs={'normalize_embeddings': True},
-            cache_folder="./transformers_models"
+            cache_folder="./data/transformers_models"
         )
         
         print("⏳ Создание эмбеддинга для запроса...")
@@ -211,7 +211,7 @@ def test_search(persist_directory="./chroma_langchain_db", collection_name=None,
         traceback.print_exc()
 
 
-def list_all_subdirectories(persist_directory="./chroma_langchain_db"):
+def list_all_subdirectories(persist_directory="./data/chroma_langchain_db"):
     """
     Показывает все поддиректории (каждая = отдельная БД пайплайна)
     """

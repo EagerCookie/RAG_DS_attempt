@@ -292,8 +292,8 @@ processing_time = Histogram(
 ```python
 # .env
 DATABASE_PATH=./data/rag_system.db
-CHROMA_PERSIST_DIR=./chroma_db
-EMBEDDING_CACHE_DIR=./transformers_models
+CHROMA_PERSIST_DIR=./data/chroma_db
+EMBEDDING_CACHE_DIR=./data/transformers_models
 MAX_WORKERS=4
 CELERY_BROKER_URL=redis://localhost:6379/0
 LOG_LEVEL=INFO

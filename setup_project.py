@@ -20,7 +20,7 @@ def create_directory_structure():
         "app/utils",
         "data",
         "data/chroma_langchain_db",
-        "transformers_models",
+        "data/transformers_models",
         "tests",
     ]
     
@@ -76,8 +76,6 @@ build/
 data/
 *.db
 *.db-journal
-transformers_models/
-chroma_langchain_db/
 
 # Env
 .env
@@ -114,7 +112,7 @@ QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=
 
 # Models
-TRANSFORMERS_CACHE=./transformers_models
+TRANSFORMERS_CACHE=./data/transformers_models
 DEFAULT_EMBEDDING_MODEL=DeepVk/USER-bge-m3
 DEFAULT_DEVICE=cpu
 

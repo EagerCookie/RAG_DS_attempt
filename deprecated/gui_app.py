@@ -158,7 +158,7 @@ def save_to_chroma(documents, embeddings):
     return Chroma(
         collection_name="example_collection",
         embedding_function=embeddings,
-        persist_directory="./chroma_langchain_db",
+        persist_directory="./data/chroma_langchain_db",
     ).add_documents(documents)
 
 def save_to_qdrant(documents, embeddings):
@@ -354,7 +354,7 @@ class DocumentProcessorApp:
                 model_name=embed_config["model_name"],
                 model_kwargs=embed_config["model_kwargs"],
                 encode_kwargs=embed_config["encode_kwargs"],
-                cache_folder="./transformers_models"
+                cache_folder="./data/transformers_models"
             )
 
             # 4. Vector DB

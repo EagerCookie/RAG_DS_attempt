@@ -47,7 +47,7 @@ embeddings = HuggingFaceEmbeddings(
     model_name=model_name,
     model_kwargs=model_kwargs,
     encode_kwargs=encode_kwargs,
-    cache_folder="./transformers_models"
+    cache_folder="./data/transformers_models"
 )
 
 # ============= ВЕКТОРНОЕ ХРАНИЛИЩЕ =============
@@ -55,7 +55,7 @@ embeddings = HuggingFaceEmbeddings(
 vector_store = Chroma(
     collection_name="example_collection_b2be69b0",  # ← ИЗМЕНИТЬ на ваш!
     embedding_function=embeddings,
-    persist_directory="./chroma_langchain_db/b2be69b0",  # ← ИЗМЕНИТЬ на ваш!
+    persist_directory="./data/chroma_langchain_db/b2be69b0",  # ← ИЗМЕНИТЬ на ваш!
 )
 
 # ============= CHAT MODEL =============

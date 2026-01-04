@@ -12,7 +12,7 @@ import json
 class DatabaseManager:
     """Manages SQLite database for file tracking and settings"""
     
-    def __init__(self, db_path: str = "rag_data.db"):
+    def __init__(self, db_path: str = "./data/rag_data.db"):
         self.db_path = db_path
         self.init_db()
     

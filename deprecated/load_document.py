@@ -48,14 +48,14 @@ embeddings = HuggingFaceEmbeddings(
     model_name=model_name,
     model_kwargs=model_kwargs,
     encode_kwargs=encode_kwargs,
-    cache_folder="./transformers_models"
+    cache_folder="./data/transformers_models"
 )
 
 # Раздел Векторных Баз
 vector_store = Chroma(
     collection_name="example_collection",
     embedding_function=embeddings,
-    persist_directory="./chroma_langchain_db",  # Where to save data locally, remove if not necessary
+    persist_directory="./data/chroma_langchain_db",  # Where to save data locally, remove if not necessary
 )
 
 ids = vector_store.add_documents(all_splits)
