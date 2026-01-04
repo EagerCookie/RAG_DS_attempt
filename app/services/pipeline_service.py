@@ -37,11 +37,43 @@ class LoaderFactory:
     @staticmethod
     def create(config: LoaderConfig, filepath: str):
         if isinstance(config, PDFLoaderConfig):
-            return PyPDFLoader(filepath)
+            # Prepare PyPDFLoader parameters
+            loader_kwargs = {
+                "extract_images": config.extract_images
+            }
+            
+            # Configure image parser if images are being extracted
+            if config.extract_images and config.images_parser != "none":
+                if config.images_parser == "rapidocr":
+                    try:
+                        from langchain_community.document_loaders.parsers.images import RapidOCRBlobParser
+                        loader_kwargs["images_parser"] = RapidOCRBlobParser()
+                    except ImportError:
+                        raise ImportError(
+                            "RapidOCR parser requires 'rapidocr-onnxruntime' package. "
+                            "Install it with: pip install rapidocr-onnxruntime"
+                        )
+                
+                elif config.images_parser == "tesseract":
+                    try:
+                        from langchain_community.document_loaders.parsers.images import TesseractBlobParser
+                        loader_kwargs["images_parser"] = TesseractBlobParser()
+                    except ImportError:
+                        raise ImportError(
+                            "Tesseract parser requires 'pytesseract' package and Tesseract installed. "
+                            "Install pytesseract with: pip install pytesseract\n"
+                            "Install Tesseract: https://github.com/tesseract-ocr/tesseract"
+                        )
+                
+                # Set image format
+                loader_kwargs["images_inner_format"] = config.images_inner_format
+            
+            return PyPDFLoader(filepath, **loader_kwargs)
+        
         elif isinstance(config, TextLoaderConfig):
-            # You can add TextLoader here
             from langchain_community.document_loaders import TextLoader
             return TextLoader(filepath, encoding=config.encoding)
+        
         else:
             raise ValueError(f"Unknown loader type: {type(config)}")
 
@@ -250,37 +282,49 @@ class PipelineValidator:
         """
         Check if pipeline components are compatible
         
+        NOTE: PipelineConfig now only contains embedding + database.
+        Loader and splitter are in ProcessingVariantConfig.
+        
         Returns:
             List of warning messages (empty if all OK)
         """
         warnings = []
         
-        # Example: Check if chunk size is appropriate for embedding model
-        if isinstance(config.splitter, RecursiveSplitterConfig):
-            if config.splitter.chunk_size > 2000:
+        # Check embedding model configuration
+        if isinstance(config.embedding, HuggingFaceEmbeddingConfig):
+            # Warn about device usage
+            if config.embedding.device == "cuda":
                 warnings.append(
-                    "Large chunk size (>2000) may cause issues with some embedding models"
+                    "Using CUDA device - ensure GPU is available"
+                )
+            
+            # Warn about large models
+            if "large" in config.embedding.model_name.lower():
+                warnings.append(
+                    "Large embedding models may require significant memory and processing time"
                 )
         
-        # Example: Check embedding model compatibility
-        if isinstance(config.embedding, HuggingFaceEmbeddingConfig):
-            if "bge" in config.embedding.model_name.lower():
-                # BGE models work best with specific chunk sizes
-                if isinstance(config.splitter, SentenceTransformerSplitterConfig):
-                    if config.splitter.chunk_size > 512:
-                        warnings.append(
-                            "BGE models work best with chunk_size <= 512 tokens"
-                        )
+        # Check database configuration
+        if isinstance(config.database, ChromaDBConfig):
+            # Check persist directory
+            import os
+            if not os.path.exists(config.database.persist_directory):
+                warnings.append(
+                    f"Persist directory '{config.database.persist_directory}' does not exist - it will be created"
+                )
         
         return warnings
     
     @staticmethod
     def estimate_processing_time(config: PipelineConfig, file_size_mb: float) -> float:
         """
-        Estimate processing time in seconds
+        Estimate processing time in seconds based on pipeline configuration
+        
+        NOTE: This is a rough estimate based only on embedding model.
+        Actual time depends on loader/splitter from ProcessingVariantConfig.
         
         Args:
-            config: Pipeline configuration
+            config: Pipeline configuration (embedding + database)
             file_size_mb: File size in megabytes
             
         Returns:
@@ -296,8 +340,5 @@ class PipelineValidator:
             else:
                 base_time += 10
         
-        # Add time for chunking
-        if isinstance(config.splitter, SentenceTransformerSplitterConfig):
-            base_time *= 1.5  # Transformer splitters are slower
         
         return base_time

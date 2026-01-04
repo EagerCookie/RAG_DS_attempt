@@ -15,7 +15,28 @@ class LoaderConfigBase(BaseModel):
 
 class PDFLoaderConfig(LoaderConfigBase):
     type: Literal["pdf"] = "pdf"
-    extract_images: bool = Field(default=True, description="Extract images from PDF")
+    extract_images: bool = Field(
+        default=False, 
+        description="Extract images from PDF"
+    )
+    images_parser: Optional[Literal["rapidocr", "tesseract", "none"]] = Field(
+        default="none",
+        description=(
+            "Image parser to use for extracting text from images:\n"
+            "- 'rapidocr': Use RapidOCR for fast OCR (requires rapidocr-onnxruntime)\n"
+            "- 'tesseract': Use Tesseract OCR (requires pytesseract and tesseract installed)\n"
+            "- 'none': Extract images but don't parse text from them"
+        )
+    )
+    images_inner_format: Literal["text", "markdown-img", "html-img"] = Field(
+        default="text",
+        description=(
+            "Format for representing extracted image content:\n"
+            "- 'text': Plain text (if OCR is used)\n"
+            "- 'markdown-img': Markdown image link format\n"
+            "- 'html-img': HTML img tag format"
+        )
+    )
 
 
 class TextLoaderConfig(LoaderConfigBase):
