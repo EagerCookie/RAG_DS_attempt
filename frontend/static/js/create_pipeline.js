@@ -1,5 +1,3 @@
-const API_URL = 'http://localhost:8000';
-
 // Store component schemas
 let componentSchemas = {
     loaders: {},
@@ -36,8 +34,10 @@ window.onload = async () => {
     await loadDatabases();
 
     // Set initial status message display
-    document.getElementById('statusMessage').style.display = 'block';
-    showStatus('Выберите режим работы и компоненты', 'info');
+    if (document.getElementById('statusMessage')) {
+        document.getElementById('statusMessage').style.display = 'block';
+        showStatus('Выберите режим работы и компоненты', 'info');
+    }
 
     // Initial button text update
     updateProcessButtonText();
@@ -186,10 +186,6 @@ function updateProcessButtonText() {
         }
     }
 }
-
-// ==========================================
-// LOAD COMPONENT LISTS
-// ==========================================
 
 // ==========================================
 // LOAD COMPONENT LISTS
@@ -662,7 +658,6 @@ async function processPipeline() {
             // ... Existing pipeline mode logic (unchanged) ...
             // Existing variant reuse logic for "Existing Pipeline" mode is different (handled in other block)
             // But your request specifically mentioned "creating a NEW pipeline"
-
             // Existing pipeline mode logic from previous file content
             const newVariantFormVisible = document.getElementById('newVariantForm').style.display !== 'none';
 

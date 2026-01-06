@@ -1,4 +1,3 @@
-const API_URL = 'http://localhost:8000';
 let currentPipeline = null;
 
 // Model options for different providers
@@ -141,7 +140,7 @@ async function askQuestion() {
             model = customModelId;
         }
 
-        // Call RAG endpoint
+        // Call RAG endpoint (API_URL is available from common.js)
         const response = await fetch(`${API_URL}/api/rag/query`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -235,12 +234,6 @@ function formatResponse(text) {
         .replace(/\n\n/g, '</p><p>')
         .replace(/\n/g, '<br>')
         .replace(/^(.+)$/, '<p>$1</p>');
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 // Handle Enter key in textarea (Shift+Enter for new line)
