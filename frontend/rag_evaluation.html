@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Evaluation - Проверка качества</title>
+    <link rel="stylesheet" href="static/css/common.css">
+    <link rel="stylesheet" href="static/css/rag_inference.css">
+    <style>
+        .metric-card {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-score {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .eval-loading {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="static/js/common.js"></script>
+    <div class="container">
+        <div class="header">
+            <h1>⚖️ RAG Evaluation</h1>
+            <p>Тестирование и валидация ответов RAG системы</p>
+        </div>
+
+        <div class="content">
+            <!-- Sidebar with settings -->
+            <div class="sidebar">
+                <div class="section">
+                    <h2>📦 Выбор пайплайна</h2>
+                    <label>Пайплайн</label>
+                    <select id="pipelineSelect" onchange="loadPipelineInfo()">
+                        <option value="">Загрузка...</option>
+                    </select>
+                    <div id="pipelineInfo" class="info-box" style="display: none;">
+                        <strong>Vector DB:</strong> <span id="vectorDbId">-</span><br>
+                        <strong>Files:</strong> <span id="filesCount">-</span><br>
+                        <strong>Chunks:</strong> <span id="chunksCount">-</span>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>🧠 LLM Модель</h2>
+                    <label>Провайдер</label>
+                    <select id="llmProvider" onchange="updateModelOptions()">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="custom">Custom API</option>
+                    </select>
+
+                    <label style="margin-top: 15px;">Модель</label>
+                    <select id="llmModel">
+                        <option value="gpt-4o">gpt-4o</option>
+                    </select>
+
+                    <div id="customApiUrl" style="display: none; margin-top: 15px;">
+                        <label>API URL</label>
+                        <input type="text" id="customUrl" placeholder="http://192.168.1.155:1234/v1">
+
+                        <label style="margin-top: 15px;">Идентификатор модели</label>
+                        <input type="text" id="customModelId" placeholder="qwen/qwen3-1.7b">
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>📏 Метрики Ragas</h2>
+                    <div style="font-size: 0.9em; color: #666; margin-bottom: 10px;">
+                        Выберите метрики для оценки:
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div>
+                            <input type="checkbox" id="metric_faithfulness" checked>
+                            <label for="metric_faithfulness">Faithfulness</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="metric_answer_relevancy" checked>
+                            <label for="metric_answer_relevancy">Answer Relevancy</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="metric_context_precision">
+                            <label for="metric_context_precision">Context Precision</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="metric_context_recall">
+                            <label for="metric_context_recall">Context Recall</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>⚙️ Параметры RAG</h2>
+                    <div class="param-group">
+                        <div>
+                            <label>Top K</label>
+                            <input type="number" id="topK" value="5" min="1" max="20">
+                        </div>
+                        <div>
+                            <label>Temperature</label>
+                            <input type="number" id="temperature" value="0.7" min="0" max="2" step="0.1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main query area -->
+            <div class="main-area">
+                <div class="query-input-area">
+                    <label style="font-size: 1.1em; margin-bottom: 10px;">💬 Тестовый вопрос:</label>
+                    <textarea id="queryInput" class="query-input"
+                        placeholder="Введите вопрос для проверки качества ответа..."></textarea>
+                    <button id="askButton" onclick="askQuestion()" style="margin-top: 10px;">
+                        Получить ответ и контекст
+                    </button>
+                </div>
+
+                <div class="response-area" id="responseArea">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚖️</div>
+                        <p>Задайте вопрос, чтобы получить ответ и оценить его качество</p>
+                    </div>
+                </div>
+
+                <!-- Hidden evaluation area -->
+                <div id="evalArea"
+                    style="display:none; margin-top: 20px; padding: 20px; background: white; border-radius: 12px; border: 1px solid #e0e0e0; box-shadow: 0 5px 15px rgba(0,0,0,0.05);">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0; color: #333;">📊 Оценка Ragas</h3>
+                        <div id="evalStatus"></div>
+                    </div>
+
+                    <button id="evalBtn" onclick="evaluateCurrentResponse()" style="background: #ff6b6b;">
+                        🚀 Запустить оценку (Ragas)
+                    </button>
+
+                    <div id="evalResults" style="margin-top: 20px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="static/js/rag_evaluation.js"></script>
+</body>
+
+</html>

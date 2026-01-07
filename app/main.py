@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, Dict, Any, List
 import hashlib
@@ -44,9 +45,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+
 # Import services AFTER app creation to avoid circular imports
 from app.services.database import DatabaseManager
 from app.services.pipeline_service import PipelineProcessor, PipelineValidator
+from app.services.ragas_service import RagasService
+from app.models.rag_schemas import RagasEvalRequest, RagasEvalResponse
 
 # Initialize services
 db_manager = DatabaseManager()
@@ -1064,6 +1070,27 @@ async def rag_query(request: RAGQueryRequest):
         print(f"RAG Query Error: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/rag/evaluate", response_model=RagasEvalResponse)
+async def evaluate_rag(request: RagasEvalRequest):
+    """
+    Evaluate RAG response using Ragas metrics
+    """
+    try:
+        results = RagasService.evaluate_response(
+            question=request.question,
+            answer=request.answer,
+            contexts=request.contexts,
+            metrics=request.metrics
+        )
+
+        return RagasEvalResponse(scores=results)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/api/pipelines/{pipeline_id}/variants", response_model=ProcessingVariantResponse)
